@@ -1,0 +1,5 @@
+{
+  "name": "Dynamic Parallax Experience",
+  "description": "An immersive tool that transforms an image and a depth map into a dynamic 3D parallax scene that responds to cursor or touch-drag movements, built with React, Three.js, and GSAP.",
+  "requestFramePermissions": []
+}
