@@ -5,6 +5,7 @@ export const theme = {
     background: '#121212',
     primaryText: '#EAEAEA',
     secondaryText: '#A0A0A0',
+    warning: '#FFD700',
   },
   fonts: {
     body: "'Inter', sans-serif",
@@ -239,4 +240,31 @@ export const LoaderContainer = styled.div`
   border-radius: 50%;
   animation: ${rotate} 1s linear infinite;
   z-index: 10;
+`;
+
+const slideDown = keyframes`
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+`;
+
+export const PerformanceWarning = styled.div`
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(0, 0, 0, 0.6);
+  color: ${({ theme }) => theme.colors.warning};
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 100;
+  animation: ${slideDown} 0.5s ease-out;
+  border: 1px solid ${({ theme }) => theme.colors.warning};
 `;

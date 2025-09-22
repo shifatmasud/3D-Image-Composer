@@ -14,6 +14,7 @@ import {
   ControlsContainer,
   SliderLabel,
   Slider,
+  PerformanceWarning
 } from './style';
 
 interface AppState {
@@ -25,6 +26,7 @@ function App() {
   const [files, setFiles] = useState<AppState>({ imageUrl: null, depthUrl: null });
   const [displacementScale, setDisplacementScale] = useState(0.3);
   const [meshDetail, setMeshDetail] = useState(256);
+  const [isPerfSucks, setPerfSucks] = useState(false);
   const sceneContainerRef = useRef<HTMLDivElement>(null);
   const pointer = usePointer(sceneContainerRef);
 
@@ -54,6 +56,7 @@ function App() {
         <MainContent ref={sceneContainerRef}>
           {isSceneReady ? (
             <>
+              {isPerfSucks && <PerformanceWarning>Performance mode enabled</PerformanceWarning>}
               <CanvasContainer>
                 <React.Suspense fallback={<Loader />}>
                    <ParallaxScene 
@@ -62,10 +65,13 @@ function App() {
                     pointer={pointer}
                     displacementScale={displacementScale}
                     meshDetail={meshDetail}
+                    isPerfSucks={isPerfSucks}
+                    onIncline={() => setPerfSucks(false)}
+                    onDecline={() => setPerfSucks(true)}
                   />
                 </React.Suspense>
               </CanvasContainer>
-              <InstructionText>Move your cursor to rotate the model.</InstructionText>
+              <InstructionText>Move your cursor to experience the effect.</InstructionText>
               <ControlsContainer>
                 <SliderLabel htmlFor="depth-slider">
                   3D Depth: {displacementScale.toFixed(2)}
@@ -74,7 +80,7 @@ function App() {
                   id="depth-slider"
                   type="range"
                   min="0"
-                  max="0.8"
+                  max="1.5"
                   step="0.01"
                   value={displacementScale}
                   onChange={(e) => setDisplacementScale(parseFloat(e.target.value))}

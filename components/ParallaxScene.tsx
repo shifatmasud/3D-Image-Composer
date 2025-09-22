@@ -2,8 +2,9 @@
 
 import React, { useRef, useMemo, useEffect } from 'react';
 import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber';
-import { Environment } from '@react-three/drei';
-import { Mesh, PlaneGeometry, TextureLoader, Vector2 } from 'three';
+import { Environment, PerformanceMonitor } from '@react-three/drei';
+import { EffectComposer, DepthOfField } from '@react-three/postprocessing';
+import { Mesh, PlaneGeometry, TextureLoader, Vector2, PointLight, MathUtils } from 'three';
 
 interface SceneContentProps {
   imageUrl: string;
@@ -12,6 +13,21 @@ interface SceneContentProps {
   displacementScale: number;
   meshDetail: number;
 }
+
+const PointerLight: React.FC<{ pointer: React.MutableRefObject<Vector2> }> = ({ pointer }) => {
+  const lightRef = useRef<PointLight>(null!);
+  const { viewport } = useThree();
+
+  useFrame(() => {
+    // The pointer ref is already smoothed via GSAP in usePointer hook
+    lightRef.current.position.x = (pointer.current.x * viewport.width) / 2;
+    lightRef.current.position.y = (pointer.current.y * viewport.height) / 2;
+  });
+
+  // A light that follows the cursor to create dynamic highlights
+  return <pointLight ref={lightRef} position-z={1.5} intensity={2.0} distance={7} decay={2} />;
+};
+
 
 const SceneContent: React.FC<SceneContentProps> = ({ imageUrl, depthUrl, pointer, displacementScale, meshDetail }) => {
   const meshRef = useRef<Mesh<PlaneGeometry>>(null);
@@ -58,10 +74,23 @@ const SceneContent: React.FC<SceneContentProps> = ({ imageUrl, depthUrl, pointer
         displacementMap={depthMap}
         displacementScale={displacementScale}
         metalness={0.2}
-        roughness={0.6}
+        roughness={0.4}
       />
     </mesh>
   );
+};
+
+const CameraParallaxController: React.FC<{ pointer: React.MutableRefObject<Vector2> }> = ({ pointer }) => {
+  // Parallax Motion Engine: Move camera slightly for a better parallax effect
+  useFrame((state) => {
+    const targetX = pointer.current.x * -0.1;
+    const targetY = pointer.current.y * -0.1;
+
+    state.camera.position.x = MathUtils.lerp(state.camera.position.x, targetX, 0.05);
+    state.camera.position.y = MathUtils.lerp(state.camera.position.y, targetY, 0.05);
+    state.camera.lookAt(0, 0, 0);
+  });
+  return null;
 };
 
 interface ParallaxSceneProps {
@@ -70,14 +99,31 @@ interface ParallaxSceneProps {
   pointer: React.MutableRefObject<Vector2>;
   displacementScale: number;
   meshDetail: number;
+  isPerfSucks: boolean;
+  onIncline: () => void;
+  onDecline: () => void;
 }
 
-export const ParallaxScene: React.FC<ParallaxSceneProps> = ({ imageUrl, depthUrl, pointer, displacementScale, meshDetail }) => {
+export const ParallaxScene: React.FC<ParallaxSceneProps> = ({ 
+  imageUrl, 
+  depthUrl, 
+  pointer, 
+  displacementScale, 
+  meshDetail, 
+  isPerfSucks,
+  onIncline,
+  onDecline,
+}) => {
   return (
     <Canvas camera={{ position: [0, 0, 2], fov: 50 }}>
+      <PerformanceMonitor onIncline={onIncline} onDecline={onDecline} />
       <React.Suspense fallback={null}>
+        {/* Softer ambient light to fill in shadows */}
+        <ambientLight intensity={0.5} />
         {/* A soft directional light from the side to give shape */}
-        <directionalLight position={[3, 2, 5]} intensity={2.5} />
+        <directionalLight position={[3, 2, 5]} intensity={1.5} />
+        {/* Interactive point light that follows the cursor */}
+        <PointerLight pointer={pointer} />
         <SceneContent
           imageUrl={imageUrl}
           depthUrl={depthUrl}
@@ -87,6 +133,21 @@ export const ParallaxScene: React.FC<ParallaxSceneProps> = ({ imageUrl, depthUrl
         />
         {/* Beautiful realistic lighting */}
         <Environment preset="sunset" />
+
+        {/* Controller for camera parallax effect */}
+        <CameraParallaxController pointer={pointer} />
+        
+        {/* Conditionally render post-processing effects for performance */}
+        {!isPerfSucks && (
+          <EffectComposer>
+            <DepthOfField
+              focusDistance={0.01}
+              focalLength={0.2}
+              bokehScale={4}
+              height={480}
+            />
+          </EffectComposer>
+        )}
       </React.Suspense>
     </Canvas>
   );
