@@ -1,4 +1,3 @@
-import 'styled-components';
 import styled, { createGlobalStyle, keyframes } from 'styled-components';
 
 export const theme = {
@@ -7,11 +6,6 @@ export const theme = {
     primaryText: '#EAEAEA',
     secondaryText: '#A0A0A0',
     warning: '#FFD700',
-    error: '#f8b0b0',
-    errorBackground: 'rgba(211, 47, 47, 0.2)',
-    errorBorder: 'rgba(211, 47, 47, 0.5)',
-    errorButton: '#d32f2f',
-    errorButtonHover: '#b71c1c',
   },
   fonts: {
     body: "'Inter', sans-serif",
@@ -23,7 +17,6 @@ export const theme = {
 
 export type ThemeType = typeof theme;
 
-// Fix: The module augmentation for 'styled-components' was failing because the module was not correctly resolved. Adding a side-effect import ensures TypeScript recognizes the module before attempting to augment it.
 declare module 'styled-components' {
   export interface DefaultTheme extends ThemeType {}
 }
@@ -43,6 +36,7 @@ const fadeInOut = keyframes`
   }
 `;
 
+// Fix: Add rotate keyframes for loader animation
 const rotate = keyframes`
   from {
     transform: rotate(0deg);
@@ -183,6 +177,7 @@ export const Slider = styled.input.attrs({ type: 'range' })`
   }
 `;
 
+// Fix: Add missing styled components for Uploader
 export const UploadBox = styled.div`
   position: absolute;
   top: 50%;
@@ -203,25 +198,22 @@ export const FileInputLabel = styled.label`
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 30px;
+  padding: 20px;
   border: 2px dashed ${({ theme }) => theme.colors.secondaryText};
   border-radius: 8px;
   cursor: pointer;
   color: ${({ theme }) => theme.colors.secondaryText};
   transition: ${({ theme }) => theme.effects.transition};
-  width: 320px;
+  width: 300px;
   text-align: center;
 
   p {
-    margin: 15px 0 8px;
+    margin: 10px 0 5px;
     color: ${({ theme }) => theme.colors.primaryText};
-    font-size: 1.1rem;
-    font-weight: 500;
   }
   
   span {
-    font-size: 0.8rem;
-    color: ${({ theme }) => theme.colors.secondaryText};
+    font-size: 12px;
   }
 
   &:hover {
@@ -234,31 +226,20 @@ export const HiddenInput = styled.input`
   display: none;
 `;
 
-export const LoaderWrapper = styled.div`
+// Fix: Add missing styled component for Loader
+export const LoaderContainer = styled.div`
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1.5rem;
-`;
-
-export const LoaderSpinner = styled.div`
   width: 50px;
   height: 50px;
+  margin-left: -25px;
+  margin-top: -25px;
   border: 5px solid rgba(255, 255, 255, 0.2);
   border-top-color: ${({ theme }) => theme.colors.primaryText};
   border-radius: 50%;
   animation: ${rotate} 1s linear infinite;
-`;
-
-export const LoadingText = styled.p`
-  color: ${({ theme }) => theme.colors.secondaryText};
-  font-size: 1rem;
-  font-weight: 500;
+  z-index: 10;
 `;
 
 const slideDown = keyframes`
@@ -286,40 +267,4 @@ export const PerformanceWarning = styled.div`
   z-index: 100;
   animation: ${slideDown} 0.5s ease-out;
   border: 1px solid ${({ theme }) => theme.colors.warning};
-`;
-
-export const ErrorDisplay = styled.div`
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background-color: ${({ theme }) => theme.colors.errorBackground};
-  color: ${({ theme }) => theme.colors.error};
-  padding: 20px 30px;
-  border-radius: 12px;
-  font-size: 16px;
-  font-weight: 500;
-  z-index: 100;
-  border: 1px solid ${({ theme }) => theme.colors.errorBorder};
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 15px;
-  max-width: 400px;
-  text-align: center;
-
-  button {
-    background-color: ${({ theme }) => theme.colors.errorButton};
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-weight: 500;
-    transition: background-color 0.3s ease;
-
-    &:hover {
-      background-color: ${({ theme }) => theme.colors.errorButtonHover};
-    }
-  }
 `;
