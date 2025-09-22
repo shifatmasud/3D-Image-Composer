@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Vector2 } from 'three';
 import gsap from 'gsap';
 
+// Fix: Imported the 'React' namespace to allow the use of 'React.RefObject'.
 export const usePointer = (targetRef: React.RefObject<HTMLElement>) => {
   const pointer = useRef(new Vector2());
   const smoothedPointer = useRef(new Vector2());

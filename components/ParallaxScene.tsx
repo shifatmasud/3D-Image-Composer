@@ -1,4 +1,4 @@
-/// <reference types="@react-three/fiber" />
+// Fix: Removed unnecessary triple-slash directive which can cause issues with modern TypeScript configurations. Types are inferred from imports.
 
 import React, { useRef, useMemo, useEffect } from 'react';
 import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber';

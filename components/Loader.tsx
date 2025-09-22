@@ -1,6 +1,15 @@
 import React from 'react';
-import { LoaderContainer } from '../style';
+import { LoaderWrapper, LoaderSpinner, LoadingText } from '../style';
 
-export const Loader: React.FC = () => {
-  return <LoaderContainer />;
+interface LoaderProps {
+  message?: string;
+}
+
+export const Loader: React.FC<LoaderProps> = ({ message }) => {
+  return (
+    <LoaderWrapper>
+      <LoaderSpinner />
+      {message && <LoadingText>{message}</LoadingText>}
+    </LoaderWrapper>
+  );
 };
