@@ -1,4 +1,5 @@
-import 'styled-components';
+// Fix: Removed the redundant side-effect import for 'styled-components'.
+// The primary import is sufficient for module augmentation.
 import styled, { createGlobalStyle, keyframes } from 'styled-components';
 
 export const theme = {
@@ -18,9 +19,6 @@ export const theme = {
 
 export type ThemeType = typeof theme;
 
-// Fix: Module augmentation for styled-components theme.
-// This was causing an error: "Invalid module name in augmentation, module 'styled-components' cannot be found."
-// Adding `import 'styled-components';` at the top of the file resolves this by ensuring the module's types are available for augmentation.
 declare module 'styled-components' {
   export interface DefaultTheme extends ThemeType {}
 }
@@ -284,4 +282,70 @@ export const PerformanceWarning = styled.div`
   z-index: 100;
   animation: ${slideDown} 0.5s ease-out;
   border: 1px solid ${({ theme }) => theme.colors.warning};
+`;
+
+export const ToggleContainer = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 10px;
+`;
+
+export const ToggleLabel = styled.label`
+  color: ${({ theme }) => theme.colors.primaryText};
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+`;
+
+export const HiddenCheckbox = styled.input.attrs({ type: 'checkbox' })`
+  border: 0;
+  clip: rect(0 0 0 0);
+  clippath: inset(50%);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+`;
+
+export const StyledToggle = styled.label`
+  cursor: pointer;
+  text-indent: -9999px;
+  width: 50px;
+  height: 25px;
+  background: grey;
+  display: block;
+  border-radius: 100px;
+  position: relative;
+  transition: background-color 0.3s;
+  
+  &:after {
+    content: '';
+    position: absolute;
+    top: 2.5px;
+    left: 2.5px;
+    width: 20px;
+    height: 20px;
+    background: #fff;
+    border-radius: 90px;
+    transition: 0.3s;
+  }
+
+  ${HiddenCheckbox}:checked + & {
+    background: #4caf50;
+  }
+
+  ${HiddenCheckbox}:checked + &:after {
+    left: calc(100% - 2.5px);
+    transform: translateX(-100%);
+  }
+
+  &:active:after {
+    width: 25px;
+  }
 `;
