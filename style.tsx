@@ -1,5 +1,5 @@
-// Fix: Removed the redundant side-effect import for 'styled-components'.
-// The primary import is sufficient for module augmentation.
+// Fix: Added a side-effect import for 'styled-components' to ensure module augmentation is applied correctly.
+import 'styled-components';
 import styled, { createGlobalStyle, keyframes } from 'styled-components';
 
 export const theme = {

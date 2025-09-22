@@ -1,6 +1,3 @@
-
-
-
 // Fix: Use a side-effect import to ensure React Three Fiber's JSX type definitions are loaded correctly. This resolves issues with TypeScript not recognizing custom R3F elements.
 import '@react-three/fiber';
 // Fix: Corrected React import to properly import `useRef` and `useEffect` hooks.
@@ -99,7 +96,6 @@ interface ParallaxSceneProps {
   imageUrl: string;
   depthUrl: string;
   pointer: React.MutableRefObject<Vector2>;
-  baseDepth: number;
   depthScale: number;
   layerCount: number;
   layerBlending: number;
@@ -108,9 +104,6 @@ interface ParallaxSceneProps {
   isPerfSucks: boolean;
   onIncline: () => void;
   onDecline: () => void;
-  normalIntensity: number;
-  ssaoIntensity: number;
-  ssaoRadius: number;
   isStatic: boolean;
 }
 
@@ -118,7 +111,6 @@ export const ParallaxScene: React.FC<ParallaxSceneProps> = ({
   imageUrl, 
   depthUrl, 
   pointer, 
-  baseDepth,
   depthScale, 
   layerCount,
   layerBlending,
@@ -127,9 +119,6 @@ export const ParallaxScene: React.FC<ParallaxSceneProps> = ({
   isPerfSucks,
   onIncline,
   onDecline,
-  normalIntensity,
-  ssaoIntensity,
-  ssaoRadius,
   isStatic,
 }) => {
   const sunRef = useRef<Mesh>(null!);
@@ -160,9 +149,7 @@ export const ParallaxScene: React.FC<ParallaxSceneProps> = ({
           depthUrl={depthUrl}
           layerCount={layerCount}
           depthScale={depthScale}
-          baseDepth={baseDepth}
           layerBlending={layerBlending}
-          normalIntensity={normalIntensity}
         />
         
         <FloatingParticles key={particleCount} count={particleCount} pointer={pointer} />
@@ -183,8 +170,6 @@ export const ParallaxScene: React.FC<ParallaxSceneProps> = ({
             bloomIntensity={bloomIntensity}
             atmosphere={atmosphere}
             sunRef={sunRef}
-            ssaoIntensity={ssaoIntensity}
-            ssaoRadius={ssaoRadius}
           />
         )}
       </React.Suspense>

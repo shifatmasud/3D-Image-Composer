@@ -49,8 +49,6 @@ function App() {
 
   // Derive all rendering parameters from the single "realism" state
   const renderingParams = useMemo(() => {
-    // baseDepth: increases with realism for more background pop
-    const baseDepth = realism * 0.4;
     // depthScale: the main driver of the 3D effect
     const depthScale = realism * 1.0;
     // layerCount: more layers for more realism, rounded to steps of 8
@@ -62,24 +60,12 @@ function App() {
     // atmosphere: more intense god rays at higher realism
     const atmosphere = 0.1 + realism * 0.9; // Maps 0-1 to 0.1-1.0
 
-    // New Params for the upgraded engine
-    // normalIntensity: controls the strength of the detail lighting on the base layer.
-    const normalIntensity = realism * 1.0;
-    // ssaoIntensity: adds realistic contact shadows.
-    const ssaoIntensity = realism * 25;
-    // ssaoRadius: defines how far the SSAO effect looks for shadows.
-    const ssaoRadius = realism * 0.1;
-
     return { 
-      baseDepth, 
       depthScale, 
       layerCount, 
       layerBlending, 
       bloomIntensity, 
       atmosphere,
-      normalIntensity,
-      ssaoIntensity,
-      ssaoRadius,
     };
   }, [realism]);
 
@@ -116,7 +102,6 @@ function App() {
                     imageUrl={files.imageUrl!} 
                     depthUrl={isStatic ? neutralDepthMap : files.depthUrl!}
                     pointer={pointer}
-                    baseDepth={renderingParams.baseDepth}
                     depthScale={renderingParams.depthScale}
                     layerCount={isPerfSucks ? 32 : renderingParams.layerCount}
                     layerBlending={renderingParams.layerBlending}
@@ -125,9 +110,6 @@ function App() {
                     isPerfSucks={isPerfSucks}
                     onIncline={() => setPerfSucks(false)}
                     onDecline={() => setPerfSucks(true)}
-                    normalIntensity={renderingParams.normalIntensity}
-                    ssaoIntensity={renderingParams.ssaoIntensity}
-                    ssaoRadius={renderingParams.ssaoRadius}
                     isStatic={isStatic}
                   />
                 </React.Suspense>

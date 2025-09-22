@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { EffectComposer, DepthOfField, Bloom, ChromaticAberration, Vignette, GodRays, SSAO, SMAA } from '@react-three/postprocessing';
+import { EffectComposer, Bloom, ChromaticAberration, Vignette, GodRays, SMAA } from '@react-three/postprocessing';
 import { Vector2, Mesh } from 'three';
 import { KernelSize } from 'postprocessing';
 
@@ -9,8 +9,6 @@ interface EffectsProps {
   bloomIntensity: number;
   atmosphere: number;
   sunRef: React.RefObject<Mesh>;
-  ssaoIntensity: number;
-  ssaoRadius: number;
 }
 
 const ChromaticAberrationEffect: React.FC<{ pointer: React.MutableRefObject<Vector2> }> = ({ pointer }) => {
@@ -25,25 +23,10 @@ const ChromaticAberrationEffect: React.FC<{ pointer: React.MutableRefObject<Vect
   return <ChromaticAberration ref={aberrationRef} offset={new Vector2(0, 0)} />;
 };
 
-export const Effects: React.FC<EffectsProps> = ({ pointer, bloomIntensity, atmosphere, sunRef, ssaoIntensity, ssaoRadius }) => {
+export const Effects: React.FC<EffectsProps> = ({ pointer, bloomIntensity, atmosphere, sunRef }) => {
   return (
     <EffectComposer multisampling={0} depthBuffer={true}>
-      {/* Fix: Run SSAO before other effects like SMAA to ensure it gets a clean normal pass. */}
-      <SSAO
-        intensity={ssaoIntensity}
-        radius={ssaoRadius}
-        luminanceInfluence={0.5}
-        bias={0.035}
-        color="black"
-      />
       <SMAA />
-      {/* Fix: Greatly reduced DoF to remove excessive blur and keep the image sharp. */}
-      <DepthOfField
-        focusDistance={0.0}
-        focalLength={0.05}
-        bokehScale={2}
-        height={480}
-      />
       <Bloom 
         intensity={bloomIntensity} 
         luminanceThreshold={0.1}
