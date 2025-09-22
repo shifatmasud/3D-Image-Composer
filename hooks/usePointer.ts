@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+// Fix: Import React to provide the React namespace for type annotations.
+import React, { useEffect, useRef } from 'react';
 import { Vector2 } from 'three';
 import gsap from 'gsap';
 

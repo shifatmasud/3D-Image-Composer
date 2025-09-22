@@ -1,9 +1,10 @@
-/// <reference types="@react-three/fiber" />
+// Fix: Removed triple-slash directive which was causing a type resolution error.
+// Types for @react-three/fiber are correctly inferred from the import statements below.
 
 import React, { useRef, useMemo, useEffect } from 'react';
 import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber';
 import { Environment, PerformanceMonitor } from '@react-three/drei';
-import { EffectComposer, DepthOfField } from '@react-three/postprocessing';
+import { EffectComposer, DepthOfField, Bloom, ChromaticAberration, Vignette } from '@react-three/postprocessing';
 import { Mesh, PlaneGeometry, TextureLoader, Vector2, PointLight, MathUtils } from 'three';
 
 interface SceneContentProps {
@@ -18,14 +19,16 @@ const PointerLight: React.FC<{ pointer: React.MutableRefObject<Vector2> }> = ({ 
   const lightRef = useRef<PointLight>(null!);
   const { viewport } = useThree();
 
-  useFrame(() => {
+  useFrame(({ clock }) => {
     // The pointer ref is already smoothed via GSAP in usePointer hook
     lightRef.current.position.x = (pointer.current.x * viewport.width) / 2;
     lightRef.current.position.y = (pointer.current.y * viewport.height) / 2;
+    // Add a pulsing effect to the light's intensity for a more "alive" feel
+    lightRef.current.intensity = 2.5 + Math.sin(clock.getElapsedTime() * 4) * 0.5;
   });
 
-  // A light that follows the cursor to create dynamic highlights
-  return <pointLight ref={lightRef} position-z={1.5} intensity={2.0} distance={7} decay={2} />;
+  // A light that follows the cursor to create dynamic highlights, now warmer and more intense
+  return <pointLight ref={lightRef} position-z={1.5} intensity={2.5} distance={7} decay={2} color="#FFDDAA" />;
 };
 
 
@@ -93,12 +96,25 @@ const CameraParallaxController: React.FC<{ pointer: React.MutableRefObject<Vecto
   return null;
 };
 
+const ChromaticAberrationEffect: React.FC<{ pointer: React.MutableRefObject<Vector2> }> = ({ pointer }) => {
+  const aberrationRef = useRef<any>(null!);
+  useFrame(() => {
+    if (aberrationRef.current) {
+      // Base the aberration on the distance from center, making it stronger at edges
+      const offsetStrength = pointer.current.length() * 0.002;
+      aberrationRef.current.offset.set(pointer.current.x * offsetStrength, pointer.current.y * offsetStrength);
+    }
+  });
+  return <ChromaticAberration ref={aberrationRef} offset={new Vector2(0, 0)} />;
+};
+
 interface ParallaxSceneProps {
   imageUrl: string;
   depthUrl: string;
   pointer: React.MutableRefObject<Vector2>;
   displacementScale: number;
   meshDetail: number;
+  bloomIntensity: number;
   isPerfSucks: boolean;
   onIncline: () => void;
   onDecline: () => void;
@@ -109,7 +125,8 @@ export const ParallaxScene: React.FC<ParallaxSceneProps> = ({
   depthUrl, 
   pointer, 
   displacementScale, 
-  meshDetail, 
+  meshDetail,
+  bloomIntensity, 
   isPerfSucks,
   onIncline,
   onDecline,
@@ -146,6 +163,14 @@ export const ParallaxScene: React.FC<ParallaxSceneProps> = ({
               bokehScale={4}
               height={480}
             />
+            <Bloom 
+              intensity={bloomIntensity} 
+              luminanceThreshold={0.1}
+              luminanceSmoothing={0.9}
+              mipmapBlur
+            />
+            <ChromaticAberrationEffect pointer={pointer} />
+            <Vignette eskil={false} offset={0.1} darkness={1.1} />
           </EffectComposer>
         )}
       </React.Suspense>

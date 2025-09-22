@@ -26,6 +26,7 @@ function App() {
   const [files, setFiles] = useState<AppState>({ imageUrl: null, depthUrl: null });
   const [displacementScale, setDisplacementScale] = useState(0.3);
   const [meshDetail, setMeshDetail] = useState(256);
+  const [bloomIntensity, setBloomIntensity] = useState(0.5);
   const [isPerfSucks, setPerfSucks] = useState(false);
   const sceneContainerRef = useRef<HTMLDivElement>(null);
   const pointer = usePointer(sceneContainerRef);
@@ -65,6 +66,7 @@ function App() {
                     pointer={pointer}
                     displacementScale={displacementScale}
                     meshDetail={meshDetail}
+                    bloomIntensity={bloomIntensity}
                     isPerfSucks={isPerfSucks}
                     onIncline={() => setPerfSucks(false)}
                     onDecline={() => setPerfSucks(true)}
@@ -96,6 +98,18 @@ function App() {
                   step="16"
                   value={meshDetail}
                   onChange={(e) => setMeshDetail(parseInt(e.target.value, 10))}
+                />
+                <SliderLabel htmlFor="bloom-slider">
+                  Bloom Intensity: {bloomIntensity.toFixed(2)}
+                </SliderLabel>
+                <Slider
+                  id="bloom-slider"
+                  type="range"
+                  min="0"
+                  max="2.0"
+                  step="0.05"
+                  value={bloomIntensity}
+                  onChange={(e) => setBloomIntensity(parseFloat(e.target.value))}
                 />
               </ControlsContainer>
             </>

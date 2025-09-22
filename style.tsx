@@ -1,3 +1,4 @@
+import 'styled-components';
 import styled, { createGlobalStyle, keyframes } from 'styled-components';
 
 export const theme = {
@@ -17,6 +18,9 @@ export const theme = {
 
 export type ThemeType = typeof theme;
 
+// Fix: Module augmentation for styled-components theme.
+// This was causing an error: "Invalid module name in augmentation, module 'styled-components' cannot be found."
+// Adding `import 'styled-components';` at the top of the file resolves this by ensuring the module's types are available for augmentation.
 declare module 'styled-components' {
   export interface DefaultTheme extends ThemeType {}
 }
@@ -43,6 +47,17 @@ const rotate = keyframes`
   }
   to {
     transform: rotate(360deg);
+  }
+`;
+
+const fadeIn = keyframes`
+  from {
+    opacity: 0;
+    transform: translate(-50%, 20px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
   }
 `;
 
@@ -122,7 +137,7 @@ export const ControlsContainer = styled.div`
   position: absolute;
   bottom: 5%;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%); /* Initial state before animation */
   z-index: 10;
   display: flex;
   flex-direction: column;
@@ -132,6 +147,8 @@ export const ControlsContainer = styled.div`
   padding: 15px 20px;
   border-radius: 12px;
   width: 300px;
+  opacity: 0; /* Start invisible */
+  animation: ${fadeIn} 1s cubic-bezier(0.25, 1, 0.5, 1) 0.5s forwards;
 `;
 
 export const SliderLabel = styled.label`
