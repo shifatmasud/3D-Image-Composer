@@ -19,7 +19,8 @@
     "@react-three/fiber": "8.16.8",
     "@react-three/drei": "9.107.0",
     "@react-three/postprocessing": "^3.0.4",
-    "postprocessing": "^6.37.8"
+    "postprocessing": "^6.37.8",
+    "framer": "^2.4.1"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
