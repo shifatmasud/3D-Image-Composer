@@ -7,7 +7,7 @@ import { motion } from 'framer-motion-3d';
 import { useMotionValue, useSpring, useTransform } from 'framer-motion';
 import { Vector2, PointLight, MathUtils } from 'three';
 import { FloatingParticles } from './FloatingParticles';
-import { LayeredImage } from './LayeredImage';
+import { LayeredImage, LayeredImageRef } from './LayeredImage';
 
 const PointerLight: React.FC<{
   smoothPointerX: ReturnType<typeof useSpring>;
@@ -37,9 +37,11 @@ interface ParallaxSceneProps {
   depthUrl: string;
   pointer: React.MutableRefObject<Vector2>;
   depthScale: number;
-  edgeFeather: number;
+  layerBlending: number;
   backgroundCutoff: number;
+  middlegroundCutoff: number;
   isStatic: boolean;
+  layeredImageRef: React.RefObject<LayeredImageRef>;
 }
 
 const SceneContent: React.FC<ParallaxSceneProps> = ({
@@ -47,9 +49,11 @@ const SceneContent: React.FC<ParallaxSceneProps> = ({
   depthUrl,
   pointer,
   depthScale,
-  edgeFeather,
+  layerBlending,
   backgroundCutoff,
+  middlegroundCutoff,
   isStatic,
+  layeredImageRef,
 }) => {
   const particleCount = 50;
 
@@ -99,11 +103,13 @@ const SceneContent: React.FC<ParallaxSceneProps> = ({
 
       <motion.group rotation-x={rotateX} rotation-y={rotateY}>
         <LayeredImage
+          ref={layeredImageRef}
           imageUrl={imageUrl}
           depthUrl={depthUrl}
           depthScale={depthScale}
-          feather={edgeFeather}
+          layerBlending={layerBlending}
           backgroundCutoff={backgroundCutoff}
+          middlegroundCutoff={middlegroundCutoff}
         />
       </motion.group>
 

@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { ThemeProvider } from 'styled-components';
-import { DownloadSimple, UploadSimple } from 'phosphor-react';
+import { DownloadSimple, UploadSimple, ArchiveBox } from 'phosphor-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ParallaxScene } from './components/ParallaxScene';
 import { Uploader } from './components/Uploader';
 import { Loader } from './components/Loader';
 import { usePointer } from './hooks/usePointer';
+import { LayeredImageRef } from './components/LayeredImage';
+import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 // Fix: Import 'HiddenInput' from './style' to resolve the 'Cannot find name' error.
 import {
   theme,
@@ -38,11 +40,13 @@ function App() {
   const sceneContainerRef = useRef<HTMLDivElement>(null);
   const pointer = usePointer(sceneContainerRef);
   const importRef = useRef<HTMLInputElement>(null);
+  const layeredImageRef = useRef<LayeredImageRef>(null);
 
   // State for new rendering parameters
   const [backgroundCutoff, setBackgroundCutoff] = useState(0.25);
+  const [middlegroundCutoff, setMiddlegroundCutoff] = useState(0.5); // New state for mid-layer
   const [depthScale, setDepthScale] = useState(0.5);
-  const [edgeFeather, setEdgeFeather] = useState(0.1);
+  const [layerBlending, setLayerBlending] = useState(0.1);
 
 
   // Generate a neutral depth map for static mode
@@ -78,11 +82,12 @@ function App() {
   const handleExport = () => {
     const settings = {
       backgroundCutoff,
+      middlegroundCutoff,
       depthScale,
-      edgeFeather,
+      layerBlending,
       isStatic,
     };
-    const blob = new Blob([JSON.stringify({ version: 2, settings }, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({ version: 4, settings }, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -105,11 +110,12 @@ function App() {
       reader.onload = (event) => {
           try {
               const json = JSON.parse(event.target?.result as string);
-              if (json.version === 2 && json.settings) {
+              if (json.version >= 3 && json.settings) {
                   const { settings } = json;
                   setBackgroundCutoff(settings.backgroundCutoff ?? 0.25);
+                  setMiddlegroundCutoff(settings.middlegroundCutoff ?? 0.5);
                   setDepthScale(settings.depthScale ?? 0.5);
-                  setEdgeFeather(settings.edgeFeather ?? 0.1);
+                  setLayerBlending(settings.layerBlending ?? settings.edgeFeather ?? 0.1);
                   setStatic(settings.isStatic ?? false);
               } else {
                   alert('Invalid or outdated preset file.');
@@ -122,6 +128,51 @@ function App() {
       reader.readAsText(file);
       e.target.value = '';
   };
+  
+  const handleExportGLB = () => {
+    if (layeredImageRef.current) {
+      const sceneToExport = layeredImageRef.current.exportForGLB();
+      if (sceneToExport) {
+        const exporter = new GLTFExporter();
+        exporter.parse(
+          sceneToExport,
+          (result) => {
+            const blob = new Blob([result as ArrayBuffer], { type: 'application/octet-stream' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'parallax-scene.glb';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+          },
+          (error) => {
+            console.error('An error happened during GLB export:', error);
+            alert('Failed to export GLB file.');
+          },
+          { binary: true }
+        );
+      }
+    }
+  };
+
+
+  const handleBackgroundCutoffChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseFloat(e.target.value);
+    setBackgroundCutoff(value);
+    if (value > middlegroundCutoff) {
+      setMiddlegroundCutoff(value);
+    }
+  };
+
+  const handleMiddlegroundCutoffChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseFloat(e.target.value);
+    setMiddlegroundCutoff(value);
+    if (value < backgroundCutoff) {
+      setBackgroundCutoff(value);
+    }
+  };
+
 
   const isSceneReady = files.imageUrl && files.depthUrl;
 
@@ -134,12 +185,14 @@ function App() {
             <CanvasContainer>
               <React.Suspense fallback={<Loader />}>
                  <ParallaxScene 
+                  layeredImageRef={layeredImageRef}
                   imageUrl={files.imageUrl!} 
                   depthUrl={isStatic ? neutralDepthMap : files.depthUrl!}
                   pointer={pointer}
                   depthScale={depthScale}
-                  edgeFeather={edgeFeather}
+                  layerBlending={layerBlending}
                   backgroundCutoff={backgroundCutoff}
+                  middlegroundCutoff={middlegroundCutoff}
                   isStatic={isStatic}
                 />
               </React.Suspense>
@@ -156,16 +209,20 @@ function App() {
           >
             <PanelTitle>Image Controls</PanelTitle>
             <ControlGroup>
-              <SliderLabel htmlFor="bg-cutoff-slider">Background Cutoff: {backgroundCutoff.toFixed(2)}</SliderLabel>
-              <Slider id="bg-cutoff-slider" min="0" max="1" step="0.01" value={backgroundCutoff} onChange={(e) => setBackgroundCutoff(parseFloat(e.target.value))} />
+              <SliderLabel htmlFor="bg-cutoff-slider">Far-plane Cutoff: {backgroundCutoff.toFixed(2)}</SliderLabel>
+              <Slider id="bg-cutoff-slider" min="0" max="1" step="0.01" value={backgroundCutoff} onChange={handleBackgroundCutoffChange} />
+            </ControlGroup>
+            <ControlGroup>
+              <SliderLabel htmlFor="mid-cutoff-slider">Mid-plane Cutoff: {middlegroundCutoff.toFixed(2)}</SliderLabel>
+              <Slider id="mid-cutoff-slider" min="0" max="1" step="0.01" value={middlegroundCutoff} onChange={handleMiddlegroundCutoffChange} />
             </ControlGroup>
             <ControlGroup>
               <SliderLabel htmlFor="depth-scale-slider">Depth Scale: {depthScale.toFixed(2)}</SliderLabel>
               <Slider id="depth-scale-slider" min="0" max="2" step="0.01" value={depthScale} onChange={(e) => setDepthScale(parseFloat(e.target.value))} />
             </ControlGroup>
             <ControlGroup>
-              <SliderLabel htmlFor="edge-feather-slider">Edge Feather: {edgeFeather.toFixed(2)}</SliderLabel>
-              <Slider id="edge-feather-slider" min="0.01" max="0.5" step="0.01" value={edgeFeather} onChange={(e) => setEdgeFeather(parseFloat(e.target.value))} />
+              <SliderLabel htmlFor="layer-blending-slider">Layer Blending: {layerBlending.toFixed(2)}</SliderLabel>
+              <Slider id="layer-blending-slider" min="0.01" max="0.5" step="0.01" value={layerBlending} onChange={(e) => setLayerBlending(parseFloat(e.target.value))} />
             </ControlGroup>
             
             <Separator />
@@ -193,6 +250,16 @@ function App() {
                 Import Preset
               </PresetButton>
               <HiddenInput type="file" ref={importRef} onChange={handleImport} accept="application/json" />
+            </ControlGroup>
+
+            <Separator />
+
+            <PanelTitle>Advanced Export</PanelTitle>
+            <ControlGroup>
+              <PresetButton onClick={handleExportGLB}>
+                <ArchiveBox weight="bold" />
+                Export as GLB
+              </PresetButton>
             </ControlGroup>
           </SidePanel>
         )}
