@@ -13,12 +13,13 @@
     "react-dom": "18.2.0",
     "styled-components": "6.1.11",
     "three": "0.165.0",
-    "gsap": "3.12.5",
+    "framer-motion": "11.2.11",
+    "framer-motion-3d": "11.2.11",
     "phosphor-react": "1.4.1",
     "@react-three/fiber": "8.16.8",
     "@react-three/drei": "9.107.0",
-    "@react-three/postprocessing": "2.16.2",
-    "postprocessing": "6.35.5"
+    "@react-three/postprocessing": "^3.0.4",
+    "postprocessing": "^6.37.8"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

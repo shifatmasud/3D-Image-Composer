@@ -1,0 +1,58 @@
+
+# Technical Plan: The Hybrid Depth-Meshing & Procedural Infill Engine
+
+## 1. High-Level Objective
+
+To completely overhaul the existing application. We will replace the current "Volumetric Layer Slicing" technique with a more advanced, hybrid rendering model that produces "detailed clean realism." The core goals are:
+-   Achieve a solid, truly 3D look for main objects.
+-   Create beautifully soft, feathered edges to eliminate the "cardboard cutout" feel.
+-   Solve the "occlusion problem" by procedurally generating plausible background textures for areas revealed by parallax motion, **without using external AI APIs.**
+-   Migrate the entire animation and interaction layer from GSAP to the more React-friendly Framer Motion for a fluid, physics-based feel.
+
+---
+
+## 2. Phase 1: Animation Engine Migration (GSAP to Framer Motion)
+
+**Goal:** Decouple all animation logic from GSAP and replace it with a declarative, physics-based system using Framer Motion.
+
+*   **`index.html`:**
+    *   **Action:** Modify the `<script type="importmap">`.
+    *   **Details:** Remove the entry for `"gsap"`. Add entries for `"framer-motion"` and `"framer-motion-3d"`.
+
+*   **`hooks/usePointer.ts`:**
+    *   **Action:** Complete refactor.
+    *   **Details:** Remove all GSAP code and the `smoothedPointer` logic. The hook's only responsibility will be to listen for `mousemove`/`touchmove` events, normalize the coordinates to a `[-1, 1]` range, and store the raw, unsmoothed values in a `useRef` object.
+
+*   **`components/ParallaxScene.tsx`:**
+    *   **Action:** Refactor scene and camera control logic.
+    *   **Details:**
+        1.  Remove the `SceneController` and `CameraParallaxController` components entirely.
+        2.  Inside the main scene component, create two `useMotionValue`s: `pointerX` and `pointerY`.
+        3.  Use a `useEffect` to update these motion values based on the raw data from the refactored `usePointer` hook.
+        4.  Create smoothed motion values using the `useSpring` hook: `const smoothPointerX = useSpring(pointerX, { stiffness: 300, damping: 40 });`.
+        5.  Use the `useTransform` hook to map the smoothed pointer values to 3D rotation and camera position values. This declaratively defines the parallax effect.
+        6.  The main `<group>` that holds the 3D image will be converted to `<motion.group>` from `framer-motion-3d`. The transformed rotation values will be passed directly as props (e.g., `rotation-y={rotateY}`).
+        7.  The `isStatic` logic will be simplified: when true, call `pointerX.set(0)` and `pointerY.set(0)`. The `useSpring` hook will automatically handle the smooth animation back to the center.
+
+*   **`App.tsx` & `style.tsx`:**
+    *   **Action:** Convert UI animations to Framer Motion.
+    *   **Details:** Remove any CSS keyframe animations (`fadeInFromRight`, etc.). Wrap the `SidePanel` and `Uploader` components in `<AnimatePresence>` and convert their root elements to `<motion.div>` (or `motion.aside`), using `initial`, `animate`, and `exit` props for enter/exit animations.
+
+---
+
+## 3. Phase 2: Core Rendering Engine Overhaul (Hybrid Meshing)
+
+**Goal:** Replace the multi-plane volumetric model with a hybrid system combining a solid displaced mesh and volumetric edge feathering.
+
+*   **`components/LayeredImage.tsx`:**
+    *   **Action:** This component will be completely rewritten.
+    *   **Details:**
+        1.  **Solid Mesh Component:** Instead of a loop of planes, create a single `<mesh>` using a highly-tessellated `<planeGeometry args={[1, 1, 512, 512]} />`.
+        2.  **New Vertex Shader:** Write a new vertex shader. For each vertex, it will sample the `uDepthMap` and displace its `z` position based on the sampled depth and a `uDepthScale` uniform. This creates the solid 3D geometry.
+        3.  **Volumetric Edges Component:** Keep the logic for creating an array of planes (`<mesh>`).
+        4.  **New Edge Fragment Shader:** Write a new fragment shader for these edge planes. This shader will perform edge detection by sampling the depth map at the current pixel and its neighbors. It will compute an alpha value that is high only along these detected edges (where there's a large depth change), creating a soft, feathered silhouette. Pixels not on an edge will be discarded for performance.
+        5.  **Assembly:** The final component will render the solid mesh in the center and the volumetric edge planes surrounding it, all within the same `<motion.group>`.
+
+---
+
+

@@ -1,6 +1,6 @@
-// Fix: Added a side-effect import for 'styled-components' to ensure module augmentation is applied correctly.
-import 'styled-components';
+// Fix: Removed a redundant side-effect import for 'styled-components' to resolve a module augmentation error.
 import styled, { createGlobalStyle, keyframes } from 'styled-components';
+import { motion } from 'framer-motion';
 
 export const theme = {
   colors: {
@@ -48,17 +48,6 @@ const rotate = keyframes`
   }
 `;
 
-const fadeIn = keyframes`
-  from {
-    opacity: 0;
-    transform: translate(-50%, 20px);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0);
-  }
-`;
-
 export const GlobalStyle = createGlobalStyle`
   *, *::before, *::after {
     box-sizing: border-box;
@@ -73,29 +62,12 @@ export const GlobalStyle = createGlobalStyle`
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     overflow: hidden;
-    cursor: none;
-  }
-  
-  body:before {
-    content: '';
-    position: fixed;
-    width: 8px;
-    height: 8px;
-    background: white;
-    border-radius: 100%;
-    transform: translate(-50%, -50%);
-    mix-blend-mode: difference;
-    pointer-events: none;
-    z-index: 1000;
-    left: var(--x);
-    top: var(--y);
-    transition: transform 0.1s ease-out;
   }
 `;
 
 export const AppContainer = styled.div`
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   height: 100vh;
   width: 100vw;
   background-color: ${({ theme }) => theme.colors.background};
@@ -104,6 +76,7 @@ export const AppContainer = styled.div`
 export const MainContent = styled.main`
   flex-grow: 1;
   position: relative;
+  height: 100%;
 `;
 
 export const CanvasContainer = styled.div`
@@ -115,46 +88,46 @@ export const CanvasContainer = styled.div`
   z-index: 1;
 `;
 
-export const InstructionText = styled.p`
-  position: absolute;
-  bottom: 15%;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 2;
-  color: ${({ theme }) => theme.colors.primaryText};
-  font-size: 16px;
-  font-weight: 500;
-  background-color: rgba(0,0,0,0.5);
-  padding: 8px 16px;
-  border-radius: 8px;
-  pointer-events: none;
-  animation: ${fadeInOut} 6s ease-in-out forwards;
-`;
-
-export const ControlsContainer = styled.div`
-  position: absolute;
-  bottom: 5%;
-  left: 50%;
-  transform: translateX(-50%); /* Initial state before animation */
-  z-index: 10;
+export const SidePanel = styled(motion.aside)`
+  width: 320px;
+  flex-shrink: 0;
+  background-color: rgba(18, 18, 18, 0.8);
+  backdrop-filter: blur(10px);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 40px 20px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  background-color: rgba(0, 0, 0, 0.5);
-  padding: 15px 20px;
-  border-radius: 12px;
-  width: 300px;
-  opacity: 0; /* Start invisible */
-  animation: ${fadeIn} 1s cubic-bezier(0.25, 1, 0.5, 1) 0.5s forwards;
+  gap: 15px;
+  z-index: 20;
+  overflow-y: auto;
 `;
+
+export const PanelTitle = styled.h2`
+  font-size: 18px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.primaryText};
+  text-align: left;
+  margin-bottom: 5px;
+  margin-top: 10px;
+
+  &:first-child {
+    margin-top: 0;
+  }
+`;
+
+export const ControlGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+`;
+
 
 export const SliderLabel = styled.label`
   color: ${({ theme }) => theme.colors.primaryText};
   font-size: 14px;
   font-weight: 500;
   width: 100%;
-  text-align: center;
+  text-align: left;
 `;
 
 export const Slider = styled.input.attrs({ type: 'range' })`
@@ -190,18 +163,42 @@ export const Slider = styled.input.attrs({ type: 'range' })`
     background: ${({ theme }) => theme.colors.primaryText};
     cursor: pointer;
   }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+
+    &::-webkit-slider-thumb {
+      background: ${({ theme }) => theme.colors.secondaryText};
+      cursor: not-allowed;
+    }
+
+    &::-moz-range-thumb {
+      background: ${({ theme }) => theme.colors.secondaryText};
+      cursor: not-allowed;
+    }
+  }
+`;
+
+export const UploadContainer = styled(motion.div)`
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(18, 18, 18, 0.7);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
 `;
 
 // Fix: Add missing styled components for Uploader
 export const UploadBox = styled.div`
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
   gap: 20px;
-  z-index: 10;
   background: rgba(0, 0, 0, 0.7);
   padding: 40px;
   border-radius: 12px;
@@ -257,39 +254,11 @@ export const LoaderContainer = styled.div`
   z-index: 10;
 `;
 
-const slideDown = keyframes`
-  from {
-    transform: translateY(-100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-`;
-
-export const PerformanceWarning = styled.div`
-  position: absolute;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: rgba(0, 0, 0, 0.6);
-  color: ${({ theme }) => theme.colors.warning};
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  z-index: 100;
-  animation: ${slideDown} 0.5s ease-out;
-  border: 1px solid ${({ theme }) => theme.colors.warning};
-`;
-
 export const ToggleContainer = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  margin-top: 10px;
 `;
 
 export const ToggleLabel = styled.label`
@@ -348,4 +317,35 @@ export const StyledToggle = styled.label`
   &:active:after {
     width: 25px;
   }
+`;
+
+export const PresetButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 15px;
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: ${({ theme }) => theme.colors.primaryText};
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  justify-content: center;
+
+  &:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+  }
+
+  svg {
+    width: 18px;
+    height: 18px;
+  }
+`;
+
+export const Separator = styled.hr`
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin: 10px 0;
 `;

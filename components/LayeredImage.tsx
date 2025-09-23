@@ -1,112 +1,209 @@
-// Fix: Use a side-effect import to ensure React Three Fiber's JSX type definitions are loaded correctly. This resolves issues with TypeScript not recognizing custom R3F elements.
+// Fix: Added a side-effect import of '@react-three/fiber' to provide JSX type augmentation for three.js elements.
 import '@react-three/fiber';
-import React, { useMemo } from 'react';
-import { useLoader, useThree } from '@react-three/fiber';
+import React, { useMemo, useEffect, useRef } from 'react';
+import { useLoader, useThree, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
-const vertexShader = `
-  varying vec2 vUv;
+// GLSL 3 Shaders. Note: #version and precision are removed, as Three.js handles them.
+// Built-in attributes like 'position' and 'uv' are also provided automatically.
+const displaceVertexShader = `
+  uniform sampler2D uDepthMap;
+  uniform float uDepthScale;
+  out vec2 vUv;
+
+  void main() {
+    vUv = uv;
+    float depth = texture(uDepthMap, vUv).r;
+    vec3 displacedPosition = position;
+    displacedPosition.z += (depth - 0.5) * uDepthScale;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(displacedPosition, 1.0);
+  }
+`;
+
+const foregroundFragmentShader = `
+  uniform sampler2D uColorMap;
+  uniform sampler2D uDepthMap;
+  uniform float uBackgroundCutoff;
+  uniform float uFeather;
+  in vec2 vUv;
+  out vec4 outColor;
+
+  void main() {
+    vec4 color = texture(uColorMap, vUv);
+    float depth = texture(uDepthMap, vUv).r;
+    
+    float alpha = smoothstep(uBackgroundCutoff - uFeather, uBackgroundCutoff + uFeather, depth);
+    
+    if (alpha < 0.01) discard;
+
+    outColor = vec4(color.rgb, color.a * alpha);
+  }
+`;
+
+const backgroundFragmentShader = `
+  uniform sampler2D uColorMap;
+  uniform sampler2D uDepthMap;
+  uniform float uBackgroundCutoff;
+  uniform float uFeather;
+  in vec2 vUv;
+  out vec4 outColor;
+
+  void main() {
+    vec4 color = texture(uColorMap, vUv);
+    float depth = texture(uDepthMap, vUv).r;
+    
+    float alpha = 1.0 - smoothstep(uBackgroundCutoff - uFeather, uBackgroundCutoff + uFeather, depth);
+
+    if (alpha < 0.01) discard;
+
+    outColor = vec4(color.rgb, color.a * alpha);
+  }
+`;
+
+const simpleVertexShader = `
+  out vec2 vUv;
+
   void main() {
     vUv = uv;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `;
 
-const fragmentShader = `
+const infillFragmentShader = `
   uniform sampler2D uColorMap;
-  uniform sampler2D uDepthMap;
-  uniform float uLayerIndex;
-  uniform float uNumLayers;
-  uniform float uDepthThreshold; // Defines the start of the foreground slicing
-  uniform float uBlendRange; // Controls the softness of the blend between layers
-  varying vec2 vUv;
+  uniform float uBlurLevel;
+  in vec2 vUv;
+  out vec4 outColor;
 
   void main() {
-    vec4 color = texture2D(uColorMap, vUv);
-    // Invert depth map (convention: white = near, black = far)
-    float depth = 1.0 - texture2D(uDepthMap, vUv).r;
-
-    // --- New Anti-Aliased Edge Feathering ---
-    // Instead of a hard discard, create a soft transition (feather) at the edge
-    // of the foreground object. The feather amount is based on the blend range.
-    float featherAmount = uBlendRange * 0.5;
-    float edgeAlpha = smoothstep(uDepthThreshold - featherAmount, uDepthThreshold + featherAmount, depth);
-
-    // --- Volumetric Blending Logic ---
-    float foregroundDepthRange = 1.0 - uDepthThreshold;
-    float layerDepth = (uLayerIndex / (uNumLayers - 1.0)) * foregroundDepthRange;
-    float pixelDepth = depth - uDepthThreshold;
-    float depthDifference = abs(pixelDepth - layerDepth);
-    float layerAlpha = 1.0 - smoothstep(0.0, uBlendRange, depthDifference);
-
-    // Combine edge feathering with the volumetric layer alpha
-    float finalAlpha = edgeAlpha * layerAlpha;
-    
-    // Discard pixels that are fully transparent to improve performance
-    if (finalAlpha < 0.01) {
-      discard;
-    }
-
-    gl_FragColor = vec4(color.rgb, color.a * finalAlpha);
+    // Sample from a lower mipmap level to get a blurred texture, filling occluded areas.
+    outColor = textureLod(uColorMap, vUv, uBlurLevel);
   }
 `;
+
 
 interface LayeredImageProps {
   imageUrl: string;
   depthUrl: string;
-  layerCount: number;
   depthScale: number;
-  layerBlending: number;
+  feather: number;
+  backgroundCutoff: number;
 }
 
 export const LayeredImage = React.forwardRef<THREE.Group, LayeredImageProps>(({ 
   imageUrl, 
   depthUrl, 
-  layerCount, 
   depthScale,
-  layerBlending,
+  feather,
+  backgroundCutoff,
 }, ref) => {
   const [colorMap, depthMap] = useLoader(THREE.TextureLoader, [imageUrl, depthUrl]);
-  const { viewport } = useThree();
+  const { viewport, gl } = useThree();
+
+  const backgroundMaterialRef = useRef<THREE.ShaderMaterial>(null);
+  const foregroundMaterialRef = useRef<THREE.ShaderMaterial>(null);
+
+  useEffect(() => {
+    const maxAnisotropy = gl.capabilities.getMaxAnisotropy();
+    colorMap.generateMipmaps = true; // Crucial for the blur-infill effect
+    colorMap.minFilter = THREE.LinearMipmapLinearFilter;
+    colorMap.magFilter = THREE.LinearFilter;
+    colorMap.wrapS = THREE.ClampToEdgeWrapping;
+    colorMap.wrapT = THREE.ClampToEdgeWrapping;
+    colorMap.anisotropy = maxAnisotropy;
+    colorMap.needsUpdate = true;
+
+    depthMap.minFilter = THREE.NearestFilter;
+    depthMap.magFilter = THREE.NearestFilter;
+    depthMap.wrapS = THREE.ClampToEdgeWrapping;
+    depthMap.wrapT = THREE.ClampToEdgeWrapping;
+    depthMap.needsUpdate = true;
+  }, [colorMap, depthMap, gl]);
+
+  // Imperatively update shader uniforms every frame. This is a robust way to
+  // ensure the GPU always has the latest state for frequently changing values.
+  useFrame(() => {
+    if (backgroundMaterialRef.current) {
+        backgroundMaterialRef.current.uniforms.uBackgroundCutoff.value = backgroundCutoff;
+        backgroundMaterialRef.current.uniforms.uFeather.value = feather;
+    }
+    if (foregroundMaterialRef.current) {
+        foregroundMaterialRef.current.uniforms.uBackgroundCutoff.value = backgroundCutoff;
+        foregroundMaterialRef.current.uniforms.uFeather.value = feather;
+        foregroundMaterialRef.current.uniforms.uDepthScale.value = depthScale;
+    }
+  });
 
   const scale = useMemo(() => {
     const aspect = colorMap.image.width / colorMap.image.height;
     const baseScale = Math.min(viewport.width / aspect, viewport.height) * 0.9;
     return [baseScale * aspect, baseScale, 1];
   }, [viewport, colorMap]);
+  
+  // Memoize the uniform objects to create them only when textures change.
+  // The values will be updated imperatively in the useFrame hook.
+  const backgroundUniforms = useMemo(() => ({
+    uColorMap: { value: colorMap },
+    uDepthMap: { value: depthMap },
+    uBackgroundCutoff: { value: 0 },
+    uFeather: { value: 0 },
+  }), [colorMap, depthMap]);
 
-  const layers = useMemo(() => {
-    // This threshold separates the background from the foreground (handled by slicing).
-    const depthThreshold = 0.5;
+  const foregroundUniforms = useMemo(() => ({
+    ...backgroundUniforms,
+    uDepthScale: { value: 0 },
+  }), [backgroundUniforms]);
 
-    return Array.from({ length: layerCount }, (_, i) => (
-      <mesh
-        key={i}
-        // Distribute layers across the depth scale
-        position-z={-(i / (layerCount -1)) * depthScale}
-      >
-        <planeGeometry args={[1, 1]} />
-        <shaderMaterial
-          uniforms={{
-            uColorMap: { value: colorMap },
-            uDepthMap: { value: depthMap },
-            uLayerIndex: { value: i },
-            uNumLayers: { value: layerCount },
-            uDepthThreshold: { value: depthThreshold },
-            uBlendRange: { value: layerBlending },
-          }}
-          vertexShader={vertexShader}
-          fragmentShader={fragmentShader}
-          transparent={true}
-        />
-      </mesh>
-    ));
-  }, [layerCount, depthScale, colorMap, depthMap, layerBlending]);
+  const infillUniforms = useMemo(() => ({
+    uColorMap: { value: colorMap },
+    uBlurLevel: { value: 5.0 }, // Hardcoded blur level for the infill
+  }), [colorMap]);
 
   return (
     <group ref={ref} scale={scale as [number, number, number]}>
-      {/* Top Layers: Sliced planes for foreground hyper-realism */}
-      {layers}
+      {/* Infill Plane: Fills occlusion gaps with a blurred version of the image */}
+      <mesh
+        position-z={-depthScale * 0.51} // Positioned just behind the main background
+      >
+        <planeGeometry args={[1.2, 1.2]} /> {/* Slightly larger to avoid edge seams */}
+        <shaderMaterial
+          key={`${depthUrl}-infill`}
+          uniforms={infillUniforms}
+          vertexShader={simpleVertexShader}
+          fragmentShader={infillFragmentShader}
+          glslVersion={THREE.GLSL3}
+        />
+      </mesh>
+      
+      {/* Background Plane: Renders the crisp, visible parts of the background */}
+      <mesh
+        position-z={-depthScale * 0.5}
+      >
+        <planeGeometry args={[1, 1]} />
+        <shaderMaterial
+          ref={backgroundMaterialRef}
+          key={`${depthUrl}-background`} // Recreate material if the depth map source changes
+          uniforms={backgroundUniforms}
+          vertexShader={simpleVertexShader}
+          fragmentShader={backgroundFragmentShader}
+          transparent={true}
+          glslVersion={THREE.GLSL3}
+        />
+      </mesh>
+
+      {/* Foreground Mesh: A single, highly-tessellated plane displaced by the depth map to create a solid 3D object */}
+      <mesh>
+        <planeGeometry args={[1, 1, 256, 256]} />
+        <shaderMaterial
+          ref={foregroundMaterialRef}
+          key={`${depthUrl}-foreground`} // Recreate material if the depth map source changes
+          uniforms={foregroundUniforms}
+          vertexShader={displaceVertexShader}
+          fragmentShader={foregroundFragmentShader}
+          transparent={true}
+          glslVersion={THREE.GLSL3}
+        />
+      </mesh>
     </group>
   );
 });

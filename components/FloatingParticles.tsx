@@ -1,5 +1,4 @@
-
-// Fix: Use a side-effect import to ensure React Three Fiber's JSX type definitions are loaded correctly. This resolves issues with TypeScript not recognizing custom R3F elements.
+// Fix: Added a side-effect import of '@react-three/fiber' to provide JSX type augmentation for three.js elements.
 import '@react-three/fiber';
 import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';

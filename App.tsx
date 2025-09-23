@@ -1,24 +1,30 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { ThemeProvider } from 'styled-components';
+import { DownloadSimple, UploadSimple } from 'phosphor-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ParallaxScene } from './components/ParallaxScene';
 import { Uploader } from './components/Uploader';
 import { Loader } from './components/Loader';
 import { usePointer } from './hooks/usePointer';
+// Fix: Import 'HiddenInput' from './style' to resolve the 'Cannot find name' error.
 import {
   theme,
   GlobalStyle,
   AppContainer,
   MainContent,
   CanvasContainer,
-  InstructionText,
-  ControlsContainer,
+  SidePanel,
+  PanelTitle,
+  ControlGroup,
   SliderLabel,
   Slider,
-  PerformanceWarning,
   ToggleContainer,
   ToggleLabel,
   HiddenCheckbox,
   StyledToggle,
+  Separator,
+  PresetButton,
+  HiddenInput,
 } from './style';
 
 interface AppState {
@@ -28,11 +34,16 @@ interface AppState {
 
 function App() {
   const [files, setFiles] = useState<AppState>({ imageUrl: null, depthUrl: null });
-  const [realism, setRealism] = useState(0.5); // Single control slider state
-  const [isPerfSucks, setPerfSucks] = useState(false);
   const [isStatic, setStatic] = useState(false);
   const sceneContainerRef = useRef<HTMLDivElement>(null);
   const pointer = usePointer(sceneContainerRef);
+  const importRef = useRef<HTMLInputElement>(null);
+
+  // State for new rendering parameters
+  const [backgroundCutoff, setBackgroundCutoff] = useState(0.25);
+  const [depthScale, setDepthScale] = useState(0.5);
+  const [edgeFeather, setEdgeFeather] = useState(0.1);
+
 
   // Generate a neutral depth map for static mode
   const neutralDepthMap = useMemo(() => {
@@ -46,28 +57,6 @@ function App() {
     }
     return canvas.toDataURL();
   }, []);
-
-  // Derive all rendering parameters from the single "realism" state
-  const renderingParams = useMemo(() => {
-    // depthScale: the main driver of the 3D effect
-    const depthScale = realism * 1.0;
-    // layerCount: more layers for more realism, rounded to steps of 8
-    const layerCount = Math.round((32 + realism * 96) / 8) * 8; // Maps 0-1 to 32-128
-    // layerBlending: becomes sharper as realism and detail increase
-    const layerBlending = 0.4 - realism * 0.3; // Maps 0-1 to 0.4-0.1
-    // bloomIntensity: more cinematic glow at higher realism
-    const bloomIntensity = 0.2 + realism * 0.8; // Maps 0-1 to 0.2-1.0 (Reduced from 1.5)
-    // atmosphere: more intense god rays at higher realism
-    const atmosphere = 0.1 + realism * 0.9; // Maps 0-1 to 0.1-1.0
-
-    return { 
-      depthScale, 
-      layerCount, 
-      layerBlending, 
-      bloomIntensity, 
-      atmosphere,
-    };
-  }, [realism]);
 
   useEffect(() => {
     return () => {
@@ -86,6 +75,54 @@ function App() {
     });
   };
 
+  const handleExport = () => {
+    const settings = {
+      backgroundCutoff,
+      depthScale,
+      edgeFeather,
+      isStatic,
+    };
+    const blob = new Blob([JSON.stringify({ version: 2, settings }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'parallax-preset.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportClick = () => {
+    importRef.current?.click();
+  };
+
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+          try {
+              const json = JSON.parse(event.target?.result as string);
+              if (json.version === 2 && json.settings) {
+                  const { settings } = json;
+                  setBackgroundCutoff(settings.backgroundCutoff ?? 0.25);
+                  setDepthScale(settings.depthScale ?? 0.5);
+                  setEdgeFeather(settings.edgeFeather ?? 0.1);
+                  setStatic(settings.isStatic ?? false);
+              } else {
+                  alert('Invalid or outdated preset file.');
+              }
+          } catch (error) {
+              console.error("Error reading preset file:", error);
+              alert('Error reading preset file.');
+          }
+      };
+      reader.readAsText(file);
+      e.target.value = '';
+  };
+
   const isSceneReady = files.imageUrl && files.depthUrl;
 
   return (
@@ -93,57 +130,76 @@ function App() {
       <GlobalStyle />
       <AppContainer>
         <MainContent ref={sceneContainerRef}>
-          {isSceneReady ? (
-            <>
-              {isPerfSucks && <PerformanceWarning>Performance mode enabled: Detail reduced.</PerformanceWarning>}
-              <CanvasContainer>
-                <React.Suspense fallback={<Loader />}>
-                   <ParallaxScene 
-                    imageUrl={files.imageUrl!} 
-                    depthUrl={isStatic ? neutralDepthMap : files.depthUrl!}
-                    pointer={pointer}
-                    depthScale={renderingParams.depthScale}
-                    layerCount={isPerfSucks ? 32 : renderingParams.layerCount}
-                    layerBlending={renderingParams.layerBlending}
-                    bloomIntensity={renderingParams.bloomIntensity}
-                    atmosphere={renderingParams.atmosphere}
-                    isPerfSucks={isPerfSucks}
-                    onIncline={() => setPerfSucks(false)}
-                    onDecline={() => setPerfSucks(true)}
-                    isStatic={isStatic}
-                  />
-                </React.Suspense>
-              </CanvasContainer>
-              <InstructionText>Move your cursor to experience the effect.</InstructionText>
-              <ControlsContainer>
-                <SliderLabel htmlFor="realism-slider">
-                  Realism: {realism.toFixed(2)}
-                </SliderLabel>
-                <Slider
-                  id="realism-slider"
-                  type="range"
-                  min="0"
-                  max="1.0"
-                  step="0.01"
-                  value={realism}
-                  onChange={(e) => setRealism(parseFloat(e.target.value))}
+          {isSceneReady && (
+            <CanvasContainer>
+              <React.Suspense fallback={<Loader />}>
+                 <ParallaxScene 
+                  imageUrl={files.imageUrl!} 
+                  depthUrl={isStatic ? neutralDepthMap : files.depthUrl!}
+                  pointer={pointer}
+                  depthScale={depthScale}
+                  edgeFeather={edgeFeather}
+                  backgroundCutoff={backgroundCutoff}
+                  isStatic={isStatic}
                 />
-                <ToggleContainer>
-                  <ToggleLabel htmlFor="static-toggle">Static Mode</ToggleLabel>
-                  <HiddenCheckbox
-                    id="static-toggle"
-                    type="checkbox"
-                    checked={isStatic}
-                    onChange={(e) => setStatic(e.target.checked)}
-                  />
-                  <StyledToggle htmlFor="static-toggle" />
-                </ToggleContainer>
-              </ControlsContainer>
-            </>
-          ) : (
-            <Uploader onFilesSelected={handleFilesSelected} />
+              </React.Suspense>
+            </CanvasContainer>
           )}
         </MainContent>
+        <AnimatePresence>
+        {isSceneReady && (
+          <SidePanel
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'spring', stiffness: 200, damping: 25 }}
+          >
+            <PanelTitle>Image Controls</PanelTitle>
+            <ControlGroup>
+              <SliderLabel htmlFor="bg-cutoff-slider">Background Cutoff: {backgroundCutoff.toFixed(2)}</SliderLabel>
+              <Slider id="bg-cutoff-slider" min="0" max="1" step="0.01" value={backgroundCutoff} onChange={(e) => setBackgroundCutoff(parseFloat(e.target.value))} />
+            </ControlGroup>
+            <ControlGroup>
+              <SliderLabel htmlFor="depth-scale-slider">Depth Scale: {depthScale.toFixed(2)}</SliderLabel>
+              <Slider id="depth-scale-slider" min="0" max="2" step="0.01" value={depthScale} onChange={(e) => setDepthScale(parseFloat(e.target.value))} />
+            </ControlGroup>
+            <ControlGroup>
+              <SliderLabel htmlFor="edge-feather-slider">Edge Feather: {edgeFeather.toFixed(2)}</SliderLabel>
+              <Slider id="edge-feather-slider" min="0.01" max="0.5" step="0.01" value={edgeFeather} onChange={(e) => setEdgeFeather(parseFloat(e.target.value))} />
+            </ControlGroup>
+            
+            <Separator />
+            
+            <PanelTitle>Modes</PanelTitle>
+            <ControlGroup>
+              <ToggleContainer>
+                <ToggleLabel htmlFor="static-toggle">Static Mode</ToggleLabel>
+                <HiddenCheckbox id="static-toggle" checked={isStatic} onChange={(e) => setStatic(e.target.checked)} />
+                <StyledToggle htmlFor="static-toggle" />
+              </ToggleContainer>
+            </ControlGroup>
+            
+            <Separator />
+
+            <PanelTitle>Presets</PanelTitle>
+            <ControlGroup>
+              {/* Fix: Corrected closing tags for PresetButton components from <P> to </PresetButton> to resolve JSX parsing errors. */}
+              <PresetButton onClick={handleExport}>
+                <DownloadSimple weight="bold" />
+                Export Preset
+              </PresetButton>
+              <PresetButton onClick={handleImportClick}>
+                <UploadSimple weight="bold" />
+                Import Preset
+              </PresetButton>
+              <HiddenInput type="file" ref={importRef} onChange={handleImport} accept="application/json" />
+            </ControlGroup>
+          </SidePanel>
+        )}
+        </AnimatePresence>
+        <AnimatePresence>
+          {!isSceneReady && <Uploader onFilesSelected={handleFilesSelected} />}
+        </AnimatePresence>
       </AppContainer>
     </ThemeProvider>
   );

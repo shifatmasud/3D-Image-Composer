@@ -1,95 +1,35 @@
-// Fix: Use a side-effect import to ensure React Three Fiber's JSX type definitions are loaded correctly. This resolves issues with TypeScript not recognizing custom R3F elements.
+// Fix: Added a side-effect import of '@react-three/fiber' to provide JSX type augmentation for three.js elements.
 import '@react-three/fiber';
-// Fix: Corrected React import to properly import `useRef` and `useEffect` hooks.
 import React, { useRef, useEffect } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Environment, PerformanceMonitor } from '@react-three/drei';
-import { Vector2, PointLight, MathUtils, Mesh, Group } from 'three';
-import gsap from 'gsap';
-import { Effects } from './Effects';
+import { Environment } from '@react-three/drei';
+import { motion } from 'framer-motion-3d';
+import { useMotionValue, useSpring, useTransform } from 'framer-motion';
+import { Vector2, PointLight, MathUtils } from 'three';
 import { FloatingParticles } from './FloatingParticles';
 import { LayeredImage } from './LayeredImage';
 
-const PointerLight: React.FC<{ pointer: React.MutableRefObject<Vector2>; isStatic: boolean }> = ({ pointer, isStatic }) => {
+const PointerLight: React.FC<{
+  smoothPointerX: ReturnType<typeof useSpring>;
+  smoothPointerY: ReturnType<typeof useSpring>;
+  isStatic: boolean;
+}> = ({ smoothPointerX, smoothPointerY, isStatic }) => {
   const lightRef = useRef<PointLight>(null!);
   const { viewport } = useThree();
 
   useFrame(({ clock }) => {
-    if (isStatic) return;
-    // The pointer ref is already smoothed via GSAP in usePointer hook
-    lightRef.current.position.x = (pointer.current.x * viewport.width) / 2;
-    lightRef.current.position.y = (pointer.current.y * viewport.height) / 2;
-    // Add a pulsing effect to the light's intensity for a more "alive" feel
-    lightRef.current.intensity = 2.5 + Math.sin(clock.getElapsedTime() * 4) * 0.5;
+    const targetX = isStatic ? 0 : (smoothPointerX.get() * viewport.width) / 2;
+    const targetY = isStatic ? 0 : (smoothPointerY.get() * viewport.height) / 2;
+    const targetIntensity = isStatic ? 1.5 : 2.5 + Math.sin(clock.getElapsedTime() * 4) * 0.5;
+
+    if (lightRef.current) {
+        lightRef.current.position.x = MathUtils.lerp(lightRef.current.position.x, targetX, 0.1);
+        lightRef.current.position.y = MathUtils.lerp(lightRef.current.position.y, targetY, 0.1);
+        lightRef.current.intensity = MathUtils.lerp(lightRef.current.intensity, targetIntensity, 0.1);
+    }
   });
 
-  useEffect(() => {
-    if (isStatic && lightRef.current) {
-      gsap.to(lightRef.current.position, { x: 0, y: 0, duration: 1, ease: 'power3.out' });
-      gsap.to(lightRef.current, { intensity: 1.5, duration: 1, ease: 'power3.out' });
-    }
-  }, [isStatic]);
-
-  // A light that follows the cursor to create dynamic highlights, now warmer and more intense
   return <pointLight ref={lightRef} position-z={1.5} intensity={2.5} distance={7} decay={2} color="#FFDDAA" />;
-};
-
-const CameraParallaxController: React.FC<{ pointer: React.MutableRefObject<Vector2>; isStatic: boolean }> = ({ pointer, isStatic }) => {
-  const { camera } = useThree();
-  // Parallax Motion Engine: Move camera slightly for a better parallax effect
-  useFrame((state) => {
-    if (isStatic) return;
-    const targetX = pointer.current.x * -0.1;
-    const targetY = pointer.current.y * -0.1;
-
-    state.camera.position.x = MathUtils.lerp(state.camera.position.x, targetX, 0.05);
-    state.camera.position.y = MathUtils.lerp(state.camera.position.y, targetY, 0.05);
-    state.camera.lookAt(0, 0, 0);
-  });
-  
-  useEffect(() => {
-    if (isStatic) {
-      gsap.to(camera.position, { x: 0, y: 0, duration: 1, ease: 'power3.out', onUpdate: () => camera.lookAt(0, 0, 0) });
-    }
-  }, [isStatic, camera]);
-
-  return null;
-};
-
-// Fix: Moved scene logic into a dedicated component to ensure R3F hooks are used within the Canvas.
-const SceneController: React.FC<{
-  groupRef: React.RefObject<Group>;
-  pointer: React.MutableRefObject<Vector2>;
-  isStatic: boolean;
-}> = ({ groupRef, pointer, isStatic }) => {
-  // Set initial rotation to immediately show the 3D effect
-  useEffect(() => {
-    if (groupRef.current) {
-      groupRef.current.rotation.x = -0.15;
-      groupRef.current.rotation.y = 0.4;
-    }
-  }, [groupRef]);
-
-  useFrame(() => {
-    if (groupRef.current && !isStatic) {
-      const targetRotationY = pointer.current.x * 0.6;
-      const targetRotationX = pointer.current.y * -0.3;
-
-      // Smoothly interpolate to the target rotation (lerp)
-      groupRef.current.rotation.y +=
-        (targetRotationY - groupRef.current.rotation.y) * 0.05;
-      groupRef.current.rotation.x +=
-        (targetRotationX - groupRef.current.rotation.x) * 0.05;
-    }
-  });
-
-  useEffect(() => {
-    if (isStatic && groupRef.current) {
-      gsap.to(groupRef.current.rotation, { x: 0, y: 0, z: 0, duration: 1, ease: 'power3.out' });
-    }
-  }, [isStatic, groupRef]);
-
-  return null;
 };
 
 interface ParallaxSceneProps {
@@ -97,82 +37,88 @@ interface ParallaxSceneProps {
   depthUrl: string;
   pointer: React.MutableRefObject<Vector2>;
   depthScale: number;
-  layerCount: number;
-  layerBlending: number;
-  bloomIntensity: number;
-  atmosphere: number;
-  isPerfSucks: boolean;
-  onIncline: () => void;
-  onDecline: () => void;
+  edgeFeather: number;
+  backgroundCutoff: number;
   isStatic: boolean;
 }
 
-export const ParallaxScene: React.FC<ParallaxSceneProps> = ({ 
-  imageUrl, 
-  depthUrl, 
-  pointer, 
-  depthScale, 
-  layerCount,
-  layerBlending,
-  bloomIntensity, 
-  atmosphere,
-  isPerfSucks,
-  onIncline,
-  onDecline,
+const SceneContent: React.FC<ParallaxSceneProps> = ({
+  imageUrl,
+  depthUrl,
+  pointer,
+  depthScale,
+  edgeFeather,
+  backgroundCutoff,
   isStatic,
 }) => {
-  const sunRef = useRef<Mesh>(null!);
-  const groupRef = useRef<Group>(null!);
-  const particleCount = isPerfSucks ? 50 : 200;
+  const particleCount = 50;
+
+  // Framer Motion setup for smooth, physics-based pointer tracking
+  const pointerX = useMotionValue(0);
+  const pointerY = useMotionValue(0);
+
+  const smoothOptions = { stiffness: 200, damping: 40, mass: 1 };
+  const smoothPointerX = useSpring(pointerX, smoothOptions);
+  const smoothPointerY = useSpring(pointerY, smoothOptions);
+
+  // Map smoothed pointer values to 3D rotation and camera position
+  const rotateY = useTransform(smoothPointerX, [-1, 1], [-0.4, 0.4]);
+  const rotateX = useTransform(smoothPointerY, [-1, 1], [0.2, -0.2]);
+  const cameraX = useTransform(smoothPointerX, [-1, 1], [0.1, -0.1]);
+  const cameraY = useTransform(smoothPointerY, [-1, 1], [0.1, -0.1]);
+
+  // Update motion values from the raw pointer data in the render loop
+  useFrame(() => {
+    pointerX.set(pointer.current.x);
+    pointerY.set(pointer.current.y);
+  });
+
+  // Handle static mode by resetting pointer values, letting the spring animate back
+  useEffect(() => {
+    if (isStatic) {
+      pointerX.set(0);
+      pointerY.set(0);
+    }
+  }, [isStatic, pointerX, pointerY]);
+
+  // Declarative camera movement
+  useFrame((state) => {
+    const targetX = isStatic ? 0 : cameraX.get();
+    const targetY = isStatic ? 0 : cameraY.get();
+    state.camera.position.x = MathUtils.lerp(state.camera.position.x, targetX, 0.05);
+    state.camera.position.y = MathUtils.lerp(state.camera.position.y, targetY, 0.05);
+    state.camera.lookAt(0, 0, 0);
+  });
 
   return (
-    <Canvas camera={{ position: [0, 0, 2], fov: 50, near: 0.1, far: 20 }}>
-      <PerformanceMonitor onIncline={onIncline} onDecline={onDecline} />
-      <React.Suspense fallback={null}>
-        {/* Softer ambient light to fill in shadows */}
-        <ambientLight intensity={0.5} />
-        {/* A soft directional light from the side to give shape */}
-        <directionalLight position={[3, 2, 5]} intensity={1.5} />
+    <React.Suspense fallback={null}>
+      <ambientLight intensity={0.5} />
+      <directionalLight position={[3, 2, 5]} intensity={1.5} />
 
-        {/* Invisible light source for God Rays */}
-        <mesh ref={sunRef} position={[0, 0, -2]}>
-          <sphereGeometry args={[0.2, 32, 32]} />
-          <meshBasicMaterial color="white" transparent opacity={0} />
-        </mesh>
+      <PointerLight smoothPointerX={smoothPointerX} smoothPointerY={smoothPointerY} isStatic={isStatic} />
 
-        {/* Interactive point light that follows the cursor */}
-        <PointerLight pointer={pointer} isStatic={isStatic} />
-        
+      <motion.group rotation-x={rotateX} rotation-y={rotateY}>
         <LayeredImage
-          ref={groupRef}
           imageUrl={imageUrl}
           depthUrl={depthUrl}
-          layerCount={layerCount}
           depthScale={depthScale}
-          layerBlending={layerBlending}
+          feather={edgeFeather}
+          backgroundCutoff={backgroundCutoff}
         />
-        
-        <FloatingParticles key={particleCount} count={particleCount} pointer={pointer} />
+      </motion.group>
 
-        {/* Beautiful realistic lighting */}
-        <Environment preset="sunset" />
+      <FloatingParticles key={particleCount} count={particleCount} pointer={pointer} />
 
-        {/* Controller for camera parallax effect */}
-        <CameraParallaxController pointer={pointer} isStatic={isStatic} />
+      <Environment preset="sunset" />
+    </React.Suspense>
+  );
+};
 
-        {/* Controller for image group rotation */}
-        <SceneController groupRef={groupRef} pointer={pointer} isStatic={isStatic} />
-        
-        {/* Conditionally render post-processing effects for performance */}
-        {!isPerfSucks && (
-          <Effects 
-            pointer={pointer}
-            bloomIntensity={bloomIntensity}
-            atmosphere={atmosphere}
-            sunRef={sunRef}
-          />
-        )}
-      </React.Suspense>
+
+export const ParallaxScene: React.FC<ParallaxSceneProps> = (props) => {
+  return (
+    <Canvas camera={{ position: [0, 0, 2], fov: 50, near: 0.1, far: 20 }}>
+      <SceneContent {...props} />
     </Canvas>
   );
 };
