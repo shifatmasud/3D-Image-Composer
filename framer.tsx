@@ -72,7 +72,6 @@ interface ParallaxCanvasProps {
 const ParallaxCanvas: React.FC<ParallaxCanvasProps> = (props) => {
     const { imageUrl, depthUrl } = props;
     const mountRef = useRef<HTMLDivElement>(null);
-    const staticMultiplier = useRef(props.isStatic ? 0 : 1);
     
     // Use a ref to pass the latest props to the animation loop to avoid stale closures
     const propsRef = useRef(props);
@@ -183,12 +182,41 @@ const ParallaxCanvas: React.FC<ParallaxCanvasProps> = (props) => {
         const clock = new THREE.Clock();
         const zeroVector = new THREE.Vector2(0, 0);
 
+        // --- Refs for smarter transitions ---
+        const lastStaticState = { current: propsRef.current.isStatic };
+        const transitionTarget = { current: null as THREE.Vector2 | null };
+        const staticMultiplier = { current: propsRef.current.isStatic ? 0 : 1 };
+
+
         const animate = () => {
             animationFrameId = requestAnimationFrame(animate);
             const { pointer, isStatic, depthScale, backgroundCutoff, middlegroundCutoff, layerBlending } = propsRef.current;
             const elapsedTime = clock.getElapsedTime();
-            
-            smoothedPointer.lerp(isStatic ? zeroVector : pointer.current, 0.1);
+
+            // --- Smart transition logic ---
+            if (isStatic !== lastStaticState.current) {
+                if (!isStatic) { // Just turned OFF static mode
+                    // Set a fixed target to animate towards: where the cursor was at the moment of the toggle.
+                    transitionTarget.current = pointer.current.clone();
+                } else { // Just turned ON static mode
+                    // Clear any fixed target, the new target is always the center.
+                    transitionTarget.current = null;
+                }
+                lastStaticState.current = isStatic;
+            }
+
+            let currentPointerTarget = isStatic ? zeroVector : pointer.current;
+            if (transitionTarget.current) {
+                // If we're in a transition, aim for the fixed target.
+                currentPointerTarget = transitionTarget.current;
+                // If we've reached the target, end the transition and resume live tracking.
+                if (smoothedPointer.distanceTo(currentPointerTarget) < 0.01) {
+                    transitionTarget.current = null;
+                }
+            }
+            smoothedPointer.lerp(currentPointerTarget, 0.1);
+            // --- End smart transition logic ---
+
             
             const mapRange = (v:number, iMin:number, iMax:number, oMin:number, oMax:number) => ((v - iMin) * (oMax - oMin)) / (iMax - iMin) + oMin;
             
