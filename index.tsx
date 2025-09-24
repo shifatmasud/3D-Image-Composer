@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import New from './raw';
+import {New} from './flat';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
