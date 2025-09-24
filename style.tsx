@@ -2,6 +2,9 @@
 import styled, { createGlobalStyle, keyframes } from 'styled-components';
 import { motion } from 'framer-motion';
 
+// Fix: Add a side-effect import for 'styled-components' to make module augmentation work.
+import 'styled-components';
+
 export const theme = {
   colors: {
     background: '#121212',

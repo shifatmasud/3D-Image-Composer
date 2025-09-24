@@ -1,14 +1,8 @@
-// Fix: Added a side-effect import of '@react-three/fiber' to provide JSX type augmentation for three.js elements.
-import '@react-three/fiber';
-import React, { useState, useRef, useEffect, useMemo, forwardRef } from 'react';
-import { DownloadSimple, UploadSimple, ArchiveBox, Image as ImageIcon } from 'phosphor-react';
-import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion';
-import { motion as motion3d } from 'framer-motion-3d';
-import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber';
-import { Environment } from '@react-three/drei';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { DownloadSimple, UploadSimple, Image as ImageIcon } from 'phosphor-react';
 import * as THREE from 'three';
 
-// --- Style Objects (replacing styled-components) ---
+// --- Style Objects (Self-contained for portability) ---
 
 const theme = {
   colors: {
@@ -214,13 +208,10 @@ const usePointer = (targetRef: React.RefObject<HTMLElement>) => {
   return pointer;
 };
 
-// --- Rebuilt Components ---
 
-const Loader: React.FC = () => {
-// Fix: Suppress TS error for framer-motion props due to a likely environment/typing issue.
-// @ts-ignore
-  return <motion.div style={loaderStyle} animate={{ rotate: 360 }} transition={{ duration: 1, ease: 'linear', repeat: Infinity }} />;
-};
+// --- UI Components ---
+
+const Loader: React.FC = () => <div style={loaderStyle} />;
 
 const CustomToggle: React.FC<{ id: string; checked: boolean; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; }> = ({ id, checked, onChange }) => {
     const toggleSwitchStyle: React.CSSProperties = {
@@ -233,19 +224,20 @@ const CustomToggle: React.FC<{ id: string; checked: boolean; onChange: (e: React
         borderRadius: '100px',
         position: 'relative',
         transition: 'background-color 0.3s',
+        padding: '2.5px',
     };
     const toggleHandleStyle: React.CSSProperties = {
         width: '20px',
         height: '20px',
         background: '#fff',
         borderRadius: '90px',
+        transition: 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
+        transform: checked ? 'translateX(25px)' : 'translateX(0px)',
     };
     return (
         <label htmlFor={id} style={toggleSwitchStyle}>
             <input id={id} type="checkbox" checked={checked} onChange={onChange} style={{ display: 'none' }} />
-{/* Fix: Suppress TS error for framer-motion props due to a likely environment/typing issue. */}
-{/* @ts-ignore */}
-            <motion.div style={toggleHandleStyle} layout transition={{ type: 'spring', stiffness: 700, damping: 30 }} />
+            <div style={toggleHandleStyle} />
         </label>
     );
 };
@@ -263,9 +255,7 @@ const Uploader: React.FC<UploaderProps> = ({ onFilesSelected }) => {
     if (e.target.files && e.target.files[0]) setter(e.target.files[0]);
   };
   return (
-// Fix: Suppress TS error for framer-motion props due to a likely environment/typing issue.
-// @ts-ignore
-    <motion.div style={uploadContainerStyle} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.5, ease: 'easeInOut' }}>
+    <div style={uploadContainerStyle}>
       <div style={uploadBoxStyle}>
         <label style={fileInputLabelStyle}>
           <ImageIcon size={48} weight="light" />
@@ -280,64 +270,12 @@ const Uploader: React.FC<UploaderProps> = ({ onFilesSelected }) => {
           <input type="file" style={hiddenInputStyle} accept="image/png, image/jpeg" onChange={(e) => handleFileChange(e, setDepthFile)} />
         </label>
       </div>
-    </motion.div>
+    </div>
   );
 };
 
-// --- 3D Components ---
 
-interface FloatingParticlesProps {
-  count: number;
-  pointer: React.MutableRefObject<THREE.Vector2>;
-}
-const FloatingParticles: React.FC<FloatingParticlesProps> = ({ count, pointer }) => {
-  const pointsRef = useRef<THREE.Points>(null!);
-  const [positions, velocities] = useMemo(() => {
-    const pos = new Float32Array(count * 3);
-    const vel = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) {
-      pos[i * 3 + 0] = (Math.random() - 0.5) * 10;
-      pos[i * 3 + 1] = (Math.random() - 0.5) * 10;
-      pos[i * 3 + 2] = (Math.random() - 0.5) * 5 - 1;
-      vel[i * 3 + 0] = (Math.random() - 0.5) * 0.002;
-      vel[i * 3 + 1] = (Math.random() - 0.5) * 0.002;
-      vel[i * 3 + 2] = (Math.random() - 0.5) * 0.002;
-    }
-    return [pos, vel];
-  }, [count]);
-  useFrame((state, delta) => {
-    if (pointsRef.current) {
-      const posArray = pointsRef.current.geometry.attributes.position.array as Float32Array;
-      for (let i = 0; i < count; i++) {
-        const i3 = i * 3;
-        posArray[i3] += velocities[i3] * 50 * delta;
-        posArray[i3 + 1] += velocities[i3 + 1] * 50 * delta;
-        posArray[i3 + 2] += velocities[i3 + 2] * 50 * delta;
-        posArray[i3] -= pointer.current.x * delta * 0.5;
-        posArray[i3 + 1] -= pointer.current.y * delta * 0.5;
-        if (Math.abs(posArray[i3]) > 5 || Math.abs(posArray[i3 + 1]) > 5 || posArray[i3 + 2] > 2) {
-          posArray[i3] = (Math.random() - 0.5) * 10;
-          posArray[i3 + 1] = (Math.random() - 0.5) * 10;
-          posArray[i3 + 2] = -3;
-        }
-      }
-      pointsRef.current.geometry.attributes.position.needsUpdate = true;
-    }
-  });
-  return (
-    // @ts-ignore
-    <points ref={pointsRef}>
-      {/* @ts-ignore */}
-      <bufferGeometry>
-        {/* @ts-ignore */}
-        <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} usage={THREE.DynamicDrawUsage} />
-      </bufferGeometry>
-      {/* @ts-ignore */}
-      <pointsMaterial size={0.015} color="#aaaaaa" sizeAttenuation fog={false} transparent opacity={0.5} />
-    </points>
-  );
-};
-
+// --- Shaders ---
 const displaceVertexShader = `
   uniform sampler2D uDepthMap; uniform float uDepthScale; out vec2 vUv;
   void main() { vUv = uv; float depth = texture(uDepthMap, vUv).r; vec3 displacedPosition = position; displacedPosition.z += (depth - 0.5) * uDepthScale; gl_Position = projectionMatrix * modelViewMatrix * vec4(displacedPosition, 1.0); }`;
@@ -356,141 +294,195 @@ const infillFragmentShader = `
   uniform sampler2D uColorMap; uniform float uBlurLevel; in vec2 vUv; out vec4 outColor;
   void main() { outColor = textureLod(uColorMap, vUv, uBlurLevel); }`;
 
-interface LayeredImageProps { imageUrl: string; depthUrl: string; depthScale: number; layerBlending: number; backgroundCutoff: number; middlegroundCutoff: number; }
-const LayeredImage: React.FC<LayeredImageProps> = ({ imageUrl, depthUrl, depthScale, layerBlending, backgroundCutoff, middlegroundCutoff }) => {
-  const [colorMap, depthMap] = useLoader(THREE.TextureLoader, [imageUrl, depthUrl]);
-  const { viewport, gl } = useThree();
-  const bgMatRef = useRef<THREE.ShaderMaterial>(null);
-  const midMatRef = useRef<THREE.ShaderMaterial>(null);
-  const fgMatRef = useRef<THREE.ShaderMaterial>(null);
-  useEffect(() => {
-    const maxAnisotropy = gl.capabilities.getMaxAnisotropy();
-    [colorMap, depthMap].forEach(map => {
-        map.wrapS = THREE.ClampToEdgeWrapping;
-        map.wrapT = THREE.ClampToEdgeWrapping;
-        map.needsUpdate = true;
-    });
-    colorMap.generateMipmaps = true;
-    colorMap.minFilter = THREE.LinearMipmapLinearFilter;
-    colorMap.magFilter = THREE.LinearFilter;
-    colorMap.anisotropy = maxAnisotropy;
-    depthMap.minFilter = THREE.NearestFilter;
-    depthMap.magFilter = THREE.NearestFilter;
-  }, [colorMap, depthMap, gl]);
-  useFrame(() => {
-    [bgMatRef, midMatRef, fgMatRef].forEach(matRef => {
-        if (matRef.current) {
-            matRef.current.uniforms.uBackgroundCutoff.value = backgroundCutoff;
-            matRef.current.uniforms.uMiddlegroundCutoff.value = middlegroundCutoff;
-            matRef.current.uniforms.uLayerBlending.value = layerBlending;
-        }
-    });
-    if (fgMatRef.current) fgMatRef.current.uniforms.uDepthScale.value = depthScale;
-    if (midMatRef.current) midMatRef.current.uniforms.uDepthScale.value = depthScale;
-  });
-  const scale = useMemo(() => {
-    const aspect = colorMap.image.width / colorMap.image.height;
-    const baseScale = Math.min(viewport.width / aspect, viewport.height) * 0.9;
-    return [baseScale * aspect, baseScale, 1];
-  }, [viewport, colorMap]);
-  const baseUniforms = useMemo(() => ({ uColorMap: { value: colorMap }, uDepthMap: { value: depthMap }, uBackgroundCutoff: { value: 0 }, uMiddlegroundCutoff: { value: 0 }, uLayerBlending: { value: 0 }, }), [colorMap, depthMap]);
-  const displacedUniforms = useMemo(() => ({ ...baseUniforms, uDepthScale: { value: 0 } }), [baseUniforms]);
-  const infillUniforms = useMemo(() => ({ uColorMap: { value: colorMap }, uBlurLevel: { value: 5.0 } }), [colorMap]);
 
-  return (
-    // @ts-ignore
-    <group scale={scale as [number, number, number]}>
-      {/* @ts-ignore */}
-      <mesh position-z={-depthScale * 0.76}>
-        {/* @ts-ignore */}
-        <planeGeometry args={[1, 1]} />
-        {/* @ts-ignore */}
-        <shaderMaterial key={`${depthUrl}-infill`} uniforms={infillUniforms} vertexShader={simpleVertexShader} fragmentShader={infillFragmentShader} glslVersion={THREE.GLSL3} />
-      </mesh>
-      {/* @ts-ignore */}
-      <mesh position-z={-depthScale * 0.75}>
-        {/* @ts-ignore */}
-        <planeGeometry args={[1, 1]} />
-        {/* @ts-ignore */}
-        <shaderMaterial ref={bgMatRef} key={`${depthUrl}-bg`} uniforms={baseUniforms} vertexShader={simpleVertexShader} fragmentShader={backgroundFragmentShader} transparent glslVersion={THREE.GLSL3} />
-      </mesh>
-      {/* @ts-ignore */}
-      <mesh position-z={-depthScale * 0.25}>
-        {/* @ts-ignore */}
-        <planeGeometry args={[1, 1, 256, 256]} />
-        {/* @ts-ignore */}
-        <shaderMaterial ref={midMatRef} key={`${depthUrl}-mid`} uniforms={displacedUniforms} vertexShader={displaceVertexShader} fragmentShader={middlegroundFragmentShader} transparent glslVersion={THREE.GLSL3} />
-      </mesh>
-      {/* @ts-ignore */}
-      <mesh>
-        {/* @ts-ignore */}
-        <planeGeometry args={[1, 1, 256, 256]} />
-        {/* @ts-ignore */}
-        <shaderMaterial ref={fgMatRef} key={`${depthUrl}-fg`} uniforms={displacedUniforms} vertexShader={displaceVertexShader} fragmentShader={foregroundFragmentShader} transparent glslVersion={THREE.GLSL3} />
-      </mesh>
-    </group>
-  );
+// --- Imperative Three.js Scene Component ---
+
+interface ParallaxCanvasProps {
+    imageUrl: string;
+    depthUrl: string;
+    pointer: React.MutableRefObject<THREE.Vector2>;
+    depthScale: number;
+    layerBlending: number;
+    backgroundCutoff: number;
+    middlegroundCutoff: number;
+    isStatic: boolean;
+}
+
+const ParallaxCanvas: React.FC<ParallaxCanvasProps> = ({
+    imageUrl, depthUrl, pointer, depthScale, layerBlending, backgroundCutoff, middlegroundCutoff, isStatic,
+}) => {
+    const mountRef = useRef<HTMLDivElement>(null);
+    const smoothedPointer = useRef(new THREE.Vector2(0, 0));
+
+    const fgMatRef = useRef<THREE.ShaderMaterial>();
+    const midMatRef = useRef<THREE.ShaderMaterial>();
+    const bgMatRef = useRef<THREE.ShaderMaterial>();
+    
+    useEffect(() => {
+        const currentMount = mountRef.current;
+        if (!currentMount) return;
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(50, currentMount.clientWidth / currentMount.clientHeight, 0.1, 20);
+        camera.position.z = 2;
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(currentMount.clientWidth, currentMount.clientHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        currentMount.appendChild(renderer.domElement);
+
+        const textureLoader = new THREE.TextureLoader();
+        const colorMap = textureLoader.load(imageUrl, tex => {
+            tex.generateMipmaps = true;
+            tex.minFilter = THREE.LinearMipmapLinearFilter;
+            tex.magFilter = THREE.LinearFilter;
+            tex.wrapS = THREE.ClampToEdgeWrapping;
+            tex.wrapT = THREE.ClampToEdgeWrapping;
+            tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+            tex.needsUpdate = true;
+        });
+        const depthMap = textureLoader.load(depthUrl, tex => {
+            tex.minFilter = THREE.NearestFilter;
+            tex.magFilter = THREE.NearestFilter;
+            tex.wrapS = THREE.ClampToEdgeWrapping;
+            tex.wrapT = THREE.ClampToEdgeWrapping;
+            tex.needsUpdate = true;
+        });
+
+        // Fix: Changed uniform definitions from functions to objects to resolve errors.
+        const baseUniforms = {
+            uColorMap: { value: colorMap }, uDepthMap: { value: depthMap },
+            uBackgroundCutoff: { value: backgroundCutoff }, uMiddlegroundCutoff: { value: middlegroundCutoff }, uLayerBlending: { value: layerBlending },
+        };
+        const displacedUniforms = { ...baseUniforms, uDepthScale: { value: depthScale } };
+        const infillUniforms = { uColorMap: { value: colorMap }, uBlurLevel: { value: 5.0 } };
+
+        const infillMaterial = new THREE.ShaderMaterial({ uniforms: infillUniforms, vertexShader: simpleVertexShader, fragmentShader: infillFragmentShader, glslVersion: THREE.GLSL3 });
+        const backgroundMaterial = new THREE.ShaderMaterial({ uniforms: baseUniforms, vertexShader: simpleVertexShader, fragmentShader: backgroundFragmentShader, transparent: true, glslVersion: THREE.GLSL3 });
+        const middlegroundMaterial = new THREE.ShaderMaterial({ uniforms: displacedUniforms, vertexShader: displaceVertexShader, fragmentShader: middlegroundFragmentShader, transparent: true, glslVersion: THREE.GLSL3 });
+        const foregroundMaterial = new THREE.ShaderMaterial({ uniforms: displacedUniforms, vertexShader: displaceVertexShader, fragmentShader: foregroundFragmentShader, transparent: true, glslVersion: THREE.GLSL3 });
+
+        fgMatRef.current = foregroundMaterial; midMatRef.current = middlegroundMaterial; bgMatRef.current = backgroundMaterial;
+
+        const mainGroup = new THREE.Group();
+        const planeGeom = new THREE.PlaneGeometry(1, 1);
+        const displacedGeom = new THREE.PlaneGeometry(1, 1, 256, 256);
+
+        const infillMesh = new THREE.Mesh(planeGeom, infillMaterial);
+        const bgMesh = new THREE.Mesh(planeGeom, backgroundMaterial);
+        const midMesh = new THREE.Mesh(displacedGeom, middlegroundMaterial);
+        const fgMesh = new THREE.Mesh(displacedGeom, foregroundMaterial);
+        mainGroup.add(infillMesh, bgMesh, midMesh, fgMesh);
+        scene.add(mainGroup);
+        
+        const updateMeshDepths = (scale: number) => {
+            infillMesh.position.z = -scale * 0.76;
+            bgMesh.position.z = -scale * 0.75;
+            midMesh.position.z = -scale * 0.25;
+        };
+        updateMeshDepths(depthScale);
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        dirLight.position.set(3, 2, 5);
+        scene.add(dirLight);
+        const pointLight = new THREE.PointLight(0xFFDDAA, 2.5, 7, 2);
+        pointLight.position.z = 1.5;
+        scene.add(pointLight);
+
+        let animationFrameId: number;
+        const clock = new THREE.Clock();
+        const animate = () => {
+            const delta = clock.getDelta();
+            const elapsedTime = clock.getElapsedTime();
+            
+            smoothedPointer.current.lerp(isStatic ? new THREE.Vector2(0,0) : pointer.current, 0.1);
+            
+            const mapRange = (v:number, iMin:number, iMax:number, oMin:number, oMax:number) => ((v - iMin) * (oMax - oMin)) / (iMax - iMin) + oMin;
+            
+            const targetRotateY = mapRange(smoothedPointer.current.x, -1, 1, -0.4, 0.4);
+            const targetRotateX = mapRange(smoothedPointer.current.y, -1, 1, 0.2, -0.2);
+            const targetCameraX = mapRange(smoothedPointer.current.x, -1, 1, 0.1, -0.1);
+            const targetCameraY = mapRange(smoothedPointer.current.y, -1, 1, 0.1, -0.1);
+
+            mainGroup.rotation.y = THREE.MathUtils.lerp(mainGroup.rotation.y, targetRotateY, 0.1);
+            mainGroup.rotation.x = THREE.MathUtils.lerp(mainGroup.rotation.x, targetRotateX, 0.1);
+            camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetCameraX, 0.1);
+            camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetCameraY, 0.1);
+            camera.lookAt(0, 0, 0);
+
+            pointLight.position.x = smoothedPointer.current.x * (width / 2);
+            pointLight.position.y = smoothedPointer.current.y * (height / 2);
+            pointLight.intensity = THREE.MathUtils.lerp(pointLight.intensity, isStatic ? 1.5 : 2.5 + Math.sin(elapsedTime * 4) * 0.5, 0.1);
+            
+            renderer.render(scene, camera);
+            animationFrameId = requestAnimationFrame(animate);
+        };
+        
+        let width = 0, height = 0;
+        const handleResize = () => {
+             if (currentMount) {
+                const w = currentMount.clientWidth; const h = currentMount.clientHeight;
+                camera.aspect = w / h;
+                camera.updateProjectionMatrix();
+                renderer.setSize(w, h);
+
+                const aspect = (colorMap.image?.width || w) / (colorMap.image?.height || h);
+                const distance = camera.position.z;
+                const vFov = (camera.fov * Math.PI) / 180;
+                height = 2 * Math.tan(vFov / 2) * distance;
+                width = height * camera.aspect;
+                const baseScale = Math.min(width / aspect, height) * 0.9;
+                mainGroup.scale.set(baseScale * aspect, baseScale, 1);
+            }
+        };
+        handleResize();
+        animate();
+        window.addEventListener('resize', handleResize);
+        
+        return () => {
+            window.removeEventListener('resize', handleResize);
+            cancelAnimationFrame(animationFrameId);
+            scene.traverse(obj => {
+                if (obj instanceof THREE.Mesh) {
+                    obj.geometry.dispose();
+                    if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+                    else obj.material.dispose();
+                }
+            });
+            colorMap.dispose();
+            depthMap.dispose();
+            renderer.dispose();
+            if (currentMount && renderer.domElement) currentMount.removeChild(renderer.domElement);
+        };
+    }, [imageUrl, depthUrl]);
+
+    useEffect(() => {
+        const mats = [fgMatRef.current, midMatRef.current, bgMatRef.current];
+        mats.forEach(mat => {
+            if (mat) {
+                mat.uniforms.uBackgroundCutoff.value = backgroundCutoff;
+                mat.uniforms.uMiddlegroundCutoff.value = middlegroundCutoff;
+                mat.uniforms.uLayerBlending.value = layerBlending;
+            }
+        });
+    }, [backgroundCutoff, middlegroundCutoff, layerBlending]);
+    
+    useEffect(() => {
+        if(fgMatRef.current) fgMatRef.current.uniforms.uDepthScale.value = depthScale;
+        if(midMatRef.current) midMatRef.current.uniforms.uDepthScale.value = depthScale;
+    }, [depthScale]);
+
+    return <div ref={mountRef} style={{ width: '100%', height: '100%', cursor: 'grab' }} />;
 };
 
-const PointerLight: React.FC<{ smoothPointerX: ReturnType<typeof useSpring>; smoothPointerY: ReturnType<typeof useSpring>; isStatic: boolean; }> = ({ smoothPointerX, smoothPointerY, isStatic }) => {
-  const lightRef = useRef<THREE.PointLight>(null!);
-  const { viewport } = useThree();
-  useFrame(({ clock }) => {
-    const targetX = isStatic ? 0 : (smoothPointerX.get() * viewport.width) / 2;
-    const targetY = isStatic ? 0 : (smoothPointerY.get() * viewport.height) / 2;
-    const targetIntensity = isStatic ? 1.5 : 2.5 + Math.sin(clock.getElapsedTime() * 4) * 0.5;
-    if (lightRef.current) {
-        lightRef.current.position.x = THREE.MathUtils.lerp(lightRef.current.position.x, targetX, 0.1);
-        lightRef.current.position.y = THREE.MathUtils.lerp(lightRef.current.position.y, targetY, 0.1);
-        lightRef.current.intensity = THREE.MathUtils.lerp(lightRef.current.intensity, targetIntensity, 0.1);
-    }
-  });
-  // @ts-ignore
-  return <pointLight ref={lightRef} position-z={1.5} intensity={2.5} distance={7} decay={2} color="#FFDDAA" />;
-};
-
-interface ParallaxSceneProps { imageUrl: string; depthUrl: string; pointer: React.MutableRefObject<THREE.Vector2>; depthScale: number; layerBlending: number; backgroundCutoff: number; middlegroundCutoff: number; isStatic: boolean; }
-const SceneContent: React.FC<ParallaxSceneProps> = ({ imageUrl, depthUrl, pointer, depthScale, layerBlending, backgroundCutoff, middlegroundCutoff, isStatic }) => {
-  const pointerX = useMotionValue(0); const pointerY = useMotionValue(0);
-  const smoothPointerX = useSpring(pointerX, { stiffness: 200, damping: 40, mass: 1 });
-  const smoothPointerY = useSpring(pointerY, { stiffness: 200, damping: 40, mass: 1 });
-  const rotateY = useTransform(smoothPointerX, [-1, 1], [-0.4, 0.4]); const rotateX = useTransform(smoothPointerY, [-1, 1], [0.2, -0.2]);
-  const cameraX = useTransform(smoothPointerX, [-1, 1], [0.1, -0.1]); const cameraY = useTransform(smoothPointerY, [-1, 1], [0.1, -0.1]);
-  useFrame(() => { pointerX.set(pointer.current.x); pointerY.set(pointer.current.y); });
-  useEffect(() => { if (isStatic) { pointerX.set(0); pointerY.set(0); } }, [isStatic, pointerX, pointerY]);
-  useFrame((state) => {
-    const targetX = isStatic ? 0 : cameraX.get(); const targetY = isStatic ? 0 : cameraY.get();
-    state.camera.position.x = THREE.MathUtils.lerp(state.camera.position.x, targetX, 0.05);
-    state.camera.position.y = THREE.MathUtils.lerp(state.camera.position.y, targetY, 0.05);
-    state.camera.lookAt(0, 0, 0);
-  });
-  return (
-    <React.Suspense fallback={null}>
-      {/* @ts-ignore */}
-      <ambientLight intensity={0.5} />
-      {/* @ts-ignore */}
-      <directionalLight position={[3, 2, 5]} intensity={1.5} />
-      <PointerLight smoothPointerX={smoothPointerX} smoothPointerY={smoothPointerY} isStatic={isStatic} />
-      <motion3d.group rotation-x={rotateX} rotation-y={rotateY}>
-        <LayeredImage imageUrl={imageUrl} depthUrl={depthUrl} depthScale={depthScale} layerBlending={layerBlending} backgroundCutoff={backgroundCutoff} middlegroundCutoff={middlegroundCutoff} />
-      </motion3d.group>
-      <FloatingParticles count={50} pointer={pointer} />
-      <Environment preset="sunset" />
-    </React.Suspense>
-  );
-};
-
-const ParallaxScene: React.FC<ParallaxSceneProps> = (props) => (
-  <Canvas camera={{ position: [0, 0, 2], fov: 50, near: 0.1, far: 20 }}><SceneContent {...props} /></Canvas>
-);
 
 // --- Main App Component ---
 
 interface AppState { imageUrl: string | null; depthUrl: string | null; }
 interface NewProps { imageUrl?: string; depthUrl?: string; depthScale?: number; layerBlending?: number; backgroundCutoff?: number; middlegroundCutoff?: number; isStatic?: boolean; showUI?: boolean; }
-export function New({ imageUrl: pImageUrl, depthUrl: pDepthUrl, depthScale: pDepthScale, layerBlending: pLayerBlending, backgroundCutoff: pBgCutoff, middlegroundCutoff: pMidCutoff, isStatic: pIsStatic, showUI = true }: NewProps) {
-  const [isClient, setIsClient] = useState(false);
-  const [files, setFiles] = useState<AppState>({ imageUrl: null, depthUrl: null });
+
+export default function New({ imageUrl: pImageUrl, depthUrl: pDepthUrl, depthScale: pDepthScale, layerBlending: pLayerBlending, backgroundCutoff: pBgCutoff, middlegroundCutoff: pMidCutoff, isStatic: pIsStatic, showUI = true }: NewProps) {
+  const [files, setFiles] = useState<AppState>({ imageUrl: pImageUrl || null, depthUrl: pDepthUrl || null });
   const [isStatic, setStatic] = useState(pIsStatic ?? false);
   const [bgCutoff, setBgCutoff] = useState(pBgCutoff ?? 0.25);
   const [midCutoff, setMidCutoff] = useState(pMidCutoff ?? 0.5);
@@ -500,18 +492,6 @@ export function New({ imageUrl: pImageUrl, depthUrl: pDepthUrl, depthScale: pDep
   const pointer = usePointer(sceneContainerRef);
   const importRef = useRef<HTMLInputElement>(null);
   
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-  
-  useEffect(() => { setStatic(pIsStatic ?? false); }, [pIsStatic]);
-  useEffect(() => { setBgCutoff(pBgCutoff ?? 0.25); }, [pBgCutoff]);
-  useEffect(() => { setMidCutoff(pMidCutoff ?? 0.5); }, [pMidCutoff]);
-  useEffect(() => { setDepthScale(pDepthScale ?? 0.5); }, [pDepthScale]);
-  useEffect(() => { setLayerBlending(pLayerBlending ?? 0.1); }, [pLayerBlending]);
-  
-  useEffect(() => { if (pImageUrl && pDepthUrl) setFiles({ imageUrl: pImageUrl, depthUrl: pDepthUrl }); }, [pImageUrl, pDepthUrl]);
-  
   const neutralDepthMap = useMemo(() => {
     const canvas = document.createElement('canvas'); canvas.width = 2; canvas.height = 2;
     const ctx = canvas.getContext('2d');
@@ -519,12 +499,10 @@ export function New({ imageUrl: pImageUrl, depthUrl: pDepthUrl, depthScale: pDep
     return canvas.toDataURL();
   }, []);
 
-  useEffect(() => {
-    return () => {
+  useEffect(() => { return () => {
       if (files.imageUrl?.startsWith('blob:')) URL.revokeObjectURL(files.imageUrl);
       if (files.depthUrl?.startsWith('blob:')) URL.revokeObjectURL(files.depthUrl);
-    };
-  }, [files]);
+  }; }, [files]);
   
   const handleFilesSelected = (imageFile: File, depthFile: File) => {
     if (files.imageUrl?.startsWith('blob:')) URL.revokeObjectURL(files.imageUrl);
@@ -546,10 +524,8 @@ export function New({ imageUrl: pImageUrl, depthUrl: pDepthUrl, depthScale: pDep
         const json = JSON.parse(event.target?.result as string);
         if (json.version >= 3 && json.settings) {
           const { settings } = json;
-          setBgCutoff(settings.backgroundCutoff ?? 0.25);
-          setMidCutoff(settings.middlegroundCutoff ?? 0.5);
-          setDepthScale(settings.depthScale ?? 0.5);
-          setLayerBlending(settings.layerBlending ?? 0.1);
+          setBgCutoff(settings.backgroundCutoff ?? 0.25); setMidCutoff(settings.middlegroundCutoff ?? 0.5);
+          setDepthScale(settings.depthScale ?? 0.5); setLayerBlending(settings.layerBlending ?? 0.1);
           setStatic(settings.isStatic ?? false);
         } else { alert('Invalid preset file.'); }
       } catch (error) { alert('Error reading preset file.'); }
@@ -569,19 +545,16 @@ export function New({ imageUrl: pImageUrl, depthUrl: pDepthUrl, depthScale: pDep
   return (
     <div style={appContainerStyle}>
       <main style={mainContentStyle} ref={sceneContainerRef}>
-        {isClient && isSceneReady && (
+        {isSceneReady && (
           <div style={canvasContainerStyle}>
             <React.Suspense fallback={<Loader />}>
-              <ParallaxScene imageUrl={files.imageUrl!} depthUrl={isStatic ? neutralDepthMap : files.depthUrl!} pointer={pointer} depthScale={depthScale} layerBlending={layerBlending} backgroundCutoff={bgCutoff} middlegroundCutoff={midCutoff} isStatic={isStatic} />
+              <ParallaxCanvas imageUrl={files.imageUrl!} depthUrl={isStatic ? neutralDepthMap : files.depthUrl!} pointer={pointer} depthScale={depthScale} layerBlending={layerBlending} backgroundCutoff={bgCutoff} middlegroundCutoff={midCutoff} isStatic={isStatic} />
             </React.Suspense>
           </div>
         )}
       </main>
-      <AnimatePresence>
-        {isSceneReady && showUI && (
-// Fix: Suppress TS error for framer-motion props due to a likely environment/typing issue.
-// @ts-ignore
-          <motion.aside key="side-panel" style={sidePanelStyle} initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', stiffness: 200, damping: 25 }}>
+      {isSceneReady && showUI && (
+          <aside key="side-panel" style={sidePanelStyle}>
             <h2 style={{...panelTitleStyle, marginTop: 0}}>Image Controls</h2>
             <div style={controlGroupStyle}>
               <label style={sliderLabelStyle} htmlFor="bg-cutoff-slider">Far-plane Cutoff: {bgCutoff.toFixed(2)}</label>
@@ -610,20 +583,13 @@ export function New({ imageUrl: pImageUrl, depthUrl: pDepthUrl, depthScale: pDep
             <hr style={separatorStyle} />
             <h2 style={panelTitleStyle}>Presets</h2>
             <div style={controlGroupStyle}>
-{/* Fix: Suppress TS error for framer-motion props due to a likely environment/typing issue. */}
-{/* @ts-ignore */}
-              <motion.button style={presetButtonStyle} whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.2)' }} onClick={handleExport}><DownloadSimple weight="bold" />Export Preset</motion.button>
-{/* Fix: Suppress TS error for framer-motion props due to a likely environment/typing issue. */}
-{/* @ts-ignore */}
-              <motion.button style={presetButtonStyle} whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.2)' }} onClick={() => importRef.current?.click()}><UploadSimple weight="bold" />Import Preset</motion.button>
+              <button style={presetButtonStyle} onClick={handleExport}><DownloadSimple weight="bold" />Export Preset</button>
+              <button style={presetButtonStyle} onClick={() => importRef.current?.click()}><UploadSimple weight="bold" />Import Preset</button>
               <input type="file" ref={importRef} style={hiddenInputStyle} onChange={handleImport} accept="application/json" />
             </div>
-          </motion.aside>
-        )}
-      </AnimatePresence>
-      <AnimatePresence>
-        {!isSceneReady && showUI && <Uploader key="uploader" onFilesSelected={handleFilesSelected} />}
-      </AnimatePresence>
+          </aside>
+      )}
+      {!isSceneReady && showUI && <Uploader key="uploader" onFilesSelected={handleFilesSelected} />}
     </div>
   );
 }

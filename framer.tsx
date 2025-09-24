@@ -1,10 +1,10 @@
 import React from "react"
-import New from "./flat"
+import { New } from "./flat"
 // Fix: Added a @ts-ignore to suppress module resolution errors for 'framer'. The 'framer' package is provided by the Framer environment and may not be available during static analysis in other contexts.
 // @ts-ignore
 import { addPropertyControls, ControlType } from "framer"
 
-export default function Parallax(props) {
+const Parallax = React.forwardRef<HTMLDivElement, any>((props, ref) => {
     const { 
         imageUrl, 
         depthUrl, 
@@ -25,7 +25,7 @@ export default function Parallax(props) {
     };
 
     return (
-        <div style={containerStyle} {...rest}>
+        <div ref={ref} style={containerStyle} {...rest}>
             <New
                 imageUrl={imageUrl}
                 depthUrl={depthUrl}
@@ -38,9 +38,12 @@ export default function Parallax(props) {
             />
         </div>
     )
-}
+});
 
 // Provide default props so the component looks good when first added
+// Fix: Suppress TypeScript error for `defaultProps` on a `React.forwardRef` component.
+// This is a known typing issue, and `defaultProps` is required by the Framer environment.
+// @ts-ignore
 Parallax.defaultProps = {
     width: 600,
     height: 400,
@@ -106,3 +109,5 @@ addPropertyControls(Parallax, {
         defaultValue: false,
     },
 })
+
+export default Parallax;
