@@ -69,25 +69,17 @@ interface ParallaxCanvasProps {
     isStatic: boolean;
 }
 
-const ParallaxCanvas: React.FC<ParallaxCanvasProps> = ({
-    imageUrl, depthUrl, pointer, depthScale, layerBlending, backgroundCutoff, middlegroundCutoff, isStatic,
-}) => {
+const ParallaxCanvas: React.FC<ParallaxCanvasProps> = (props) => {
+    const { imageUrl, depthUrl } = props;
     const mountRef = useRef<HTMLDivElement>(null);
-    const smoothedPointer = useRef(new THREE.Vector2(0, 0));
+    const staticMultiplier = useRef(props.isStatic ? 0 : 1);
+    
+    // Use a ref to pass the latest props to the animation loop to avoid stale closures
+    const propsRef = useRef(props);
+    useEffect(() => {
+        propsRef.current = props;
+    });
 
-    const fgMatRef = useRef<THREE.ShaderMaterial | null>(null);
-    const midMatRef = useRef<THREE.ShaderMaterial | null>(null);
-    const bgMatRef = useRef<THREE.ShaderMaterial | null>(null);
-    const depthMapRef = useRef<THREE.Texture | null>(null);
-    const neutralDepthMapRef = useRef<THREE.Texture | null>(null);
-    
-    const neutralDepthMapUrl = useMemo(() => {
-        const canvas = document.createElement('canvas'); canvas.width = 2; canvas.height = 2;
-        const ctx = canvas.getContext('2d');
-        if (ctx) { ctx.fillStyle = 'rgb(128, 128, 128)'; ctx.fillRect(0, 0, 2, 2); }
-        return canvas.toDataURL();
-    }, []);
-    
     useEffect(() => {
         const currentMount = mountRef.current;
         if (!currentMount) return;
@@ -102,22 +94,32 @@ const ParallaxCanvas: React.FC<ParallaxCanvasProps> = ({
 
         const textureLoader = new THREE.TextureLoader();
         let colorMap: THREE.Texture;
+        let mainGroup: THREE.Group;
+        const smoothedPointer = new THREE.Vector2(0, 0);
 
-        let width = 0, height = 0;
+        const viewportSize = { width: 0, height: 0 };
         const handleResize = () => {
-             if (currentMount && colorMap?.image) {
+             if (currentMount && colorMap?.image && mainGroup) {
                 const w = currentMount.clientWidth; const h = currentMount.clientHeight;
                 camera.aspect = w / h;
                 camera.updateProjectionMatrix();
                 renderer.setSize(w, h);
 
-                const aspect = colorMap.image.width / colorMap.image.height;
+                const imageAspect = colorMap.image.width / colorMap.image.height;
                 const distance = camera.position.z;
                 const vFov = (camera.fov * Math.PI) / 180;
-                height = 2 * Math.tan(vFov / 2) * distance;
-                width = height * camera.aspect;
-                const baseScale = Math.min(width / aspect, height) * 0.9;
-                mainGroup.scale.set(baseScale * aspect, baseScale, 1);
+                viewportSize.height = 2 * Math.tan(vFov / 2) * distance;
+                viewportSize.width = viewportSize.height * camera.aspect;
+
+                let scaleX, scaleY;
+                if (imageAspect > camera.aspect) { // Image is wider than the viewport, fit height
+                    scaleY = viewportSize.height;
+                    scaleX = viewportSize.height * imageAspect;
+                } else { // Image is taller than viewport, fit width
+                    scaleX = viewportSize.width;
+                    scaleY = viewportSize.width / imageAspect;
+                }
+                mainGroup.scale.set(scaleX, scaleY, 1);
             }
         };
 
@@ -132,27 +134,19 @@ const ParallaxCanvas: React.FC<ParallaxCanvasProps> = ({
             handleResize();
         });
         
-        depthMapRef.current = textureLoader.load(depthUrl, tex => {
+        const depthMap = textureLoader.load(depthUrl, tex => {
             tex.minFilter = THREE.NearestFilter;
             tex.magFilter = THREE.NearestFilter;
             tex.wrapS = THREE.ClampToEdgeWrapping;
             tex.wrapT = THREE.ClampToEdgeWrapping;
             tex.needsUpdate = true;
         });
-
-        neutralDepthMapRef.current = textureLoader.load(neutralDepthMapUrl, tex => {
-            tex.minFilter = THREE.NearestFilter;
-            tex.magFilter = THREE.NearestFilter;
-            tex.wrapS = THREE.ClampToEdgeWrapping;
-            tex.wrapT = THREE.ClampToEdgeWrapping;
-            tex.needsUpdate = true;
-        });
-
+        
         const baseUniforms = {
-            uColorMap: { value: colorMap }, uDepthMap: { value: isStatic ? neutralDepthMapRef.current : depthMapRef.current },
-            uBackgroundCutoff: { value: backgroundCutoff }, uMiddlegroundCutoff: { value: middlegroundCutoff }, uLayerBlending: { value: layerBlending },
+            uColorMap: { value: colorMap }, uDepthMap: { value: depthMap },
+            uBackgroundCutoff: { value: 0 }, uMiddlegroundCutoff: { value: 0 }, uLayerBlending: { value: 0 },
         };
-        const displacedUniforms = { ...baseUniforms, uDepthScale: { value: depthScale } };
+        const displacedUniforms = { ...baseUniforms, uDepthScale: { value: 0 } };
         const infillUniforms = { uColorMap: { value: colorMap }, uBlurLevel: { value: 5.0 } };
 
         const infillMaterial = new THREE.ShaderMaterial({ uniforms: infillUniforms, vertexShader: simpleVertexShader, fragmentShader: infillFragmentShader, glslVersion: THREE.GLSL3 });
@@ -160,9 +154,7 @@ const ParallaxCanvas: React.FC<ParallaxCanvasProps> = ({
         const middlegroundMaterial = new THREE.ShaderMaterial({ uniforms: displacedUniforms, vertexShader: displaceVertexShader, fragmentShader: middlegroundFragmentShader, transparent: true, glslVersion: THREE.GLSL3 });
         const foregroundMaterial = new THREE.ShaderMaterial({ uniforms: displacedUniforms, vertexShader: displaceVertexShader, fragmentShader: foregroundFragmentShader, transparent: true, glslVersion: THREE.GLSL3 });
 
-        fgMatRef.current = foregroundMaterial; midMatRef.current = middlegroundMaterial; bgMatRef.current = backgroundMaterial;
-
-        const mainGroup = new THREE.Group();
+        mainGroup = new THREE.Group();
         const planeGeom = new THREE.PlaneGeometry(1, 1);
         const displacedGeom = new THREE.PlaneGeometry(1, 1, 256, 256);
 
@@ -178,7 +170,6 @@ const ParallaxCanvas: React.FC<ParallaxCanvasProps> = ({
             bgMesh.position.z = -scale * 0.75;
             midMesh.position.z = -scale * 0.25;
         };
-        updateMeshDepths(depthScale);
 
         scene.add(new THREE.AmbientLight(0xffffff, 0.5));
         const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
@@ -193,16 +184,18 @@ const ParallaxCanvas: React.FC<ParallaxCanvasProps> = ({
         const zeroVector = new THREE.Vector2(0, 0);
 
         const animate = () => {
+            animationFrameId = requestAnimationFrame(animate);
+            const { pointer, isStatic, depthScale, backgroundCutoff, middlegroundCutoff, layerBlending } = propsRef.current;
             const elapsedTime = clock.getElapsedTime();
             
-            smoothedPointer.current.lerp(isStatic ? zeroVector : pointer.current, 0.1);
+            smoothedPointer.lerp(isStatic ? zeroVector : pointer.current, 0.1);
             
             const mapRange = (v:number, iMin:number, iMax:number, oMin:number, oMax:number) => ((v - iMin) * (oMax - oMin)) / (iMax - iMin) + oMin;
             
-            const targetRotateY = mapRange(smoothedPointer.current.x, -1, 1, -0.4, 0.4);
-            const targetRotateX = mapRange(smoothedPointer.current.y, -1, 1, 0.2, -0.2);
-            const targetCameraX = mapRange(smoothedPointer.current.x, -1, 1, 0.1, -0.1);
-            const targetCameraY = mapRange(smoothedPointer.current.y, -1, 1, 0.1, -0.1);
+            const targetRotateY = mapRange(smoothedPointer.x, -1, 1, -0.4, 0.4);
+            const targetRotateX = mapRange(smoothedPointer.y, -1, 1, 0.2, -0.2);
+            const targetCameraX = mapRange(smoothedPointer.x, -1, 1, 0.1, -0.1);
+            const targetCameraY = mapRange(smoothedPointer.y, -1, 1, 0.1, -0.1);
 
             mainGroup.rotation.y = THREE.MathUtils.lerp(mainGroup.rotation.y, targetRotateY, 0.1);
             mainGroup.rotation.x = THREE.MathUtils.lerp(mainGroup.rotation.x, targetRotateX, 0.1);
@@ -210,12 +203,27 @@ const ParallaxCanvas: React.FC<ParallaxCanvasProps> = ({
             camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetCameraY, 0.1);
             camera.lookAt(0, 0, 0);
 
-            pointLight.position.x = smoothedPointer.current.x * (width / 2);
-            pointLight.position.y = smoothedPointer.current.y * (height / 2);
+            pointLight.position.x = smoothedPointer.x * (viewportSize.width / 2);
+            pointLight.position.y = smoothedPointer.y * (viewportSize.height / 2);
             pointLight.intensity = THREE.MathUtils.lerp(pointLight.intensity, isStatic ? 1.5 : 2.5 + Math.sin(elapsedTime * 4) * 0.5, 0.1);
             
+            // --- Animate depth and update uniforms ---
+            const targetMultiplier = isStatic ? 0 : 1;
+            staticMultiplier.current = THREE.MathUtils.lerp(staticMultiplier.current, targetMultiplier, 0.1);
+            const finalDepthScale = depthScale * staticMultiplier.current;
+
+            const materials = [backgroundMaterial, middlegroundMaterial, foregroundMaterial];
+            for (const material of materials) {
+                material.uniforms.uBackgroundCutoff.value = backgroundCutoff;
+                material.uniforms.uMiddlegroundCutoff.value = middlegroundCutoff;
+                material.uniforms.uLayerBlending.value = layerBlending;
+            }
+            foregroundMaterial.uniforms.uDepthScale.value = finalDepthScale;
+            middlegroundMaterial.uniforms.uDepthScale.value = finalDepthScale;
+            updateMeshDepths(finalDepthScale);
+            // --- End uniform updates ---
+
             renderer.render(scene, camera);
-            animationFrameId = requestAnimationFrame(animate);
         };
         
         handleResize();
@@ -233,40 +241,11 @@ const ParallaxCanvas: React.FC<ParallaxCanvasProps> = ({
                 }
             });
             colorMap.dispose();
-            depthMapRef.current?.dispose();
-            neutralDepthMapRef.current?.dispose();
+            depthMap.dispose();
             renderer.dispose();
             if (currentMount && renderer.domElement) currentMount.removeChild(renderer.domElement);
         };
-    }, [imageUrl, depthUrl, neutralDepthMapUrl]);
-
-    useEffect(() => {
-        const newDepthMap = isStatic ? neutralDepthMapRef.current : depthMapRef.current;
-        if (!newDepthMap) return;
-
-        const mats = [fgMatRef.current, midMatRef.current, bgMatRef.current];
-        mats.forEach(mat => {
-            if (mat) {
-                mat.uniforms.uDepthMap.value = newDepthMap;
-            }
-        });
-    }, [isStatic]);
-
-    useEffect(() => {
-        const mats = [fgMatRef.current, midMatRef.current, bgMatRef.current];
-        mats.forEach(mat => {
-            if (mat) {
-                mat.uniforms.uBackgroundCutoff.value = backgroundCutoff;
-                mat.uniforms.uMiddlegroundCutoff.value = middlegroundCutoff;
-                mat.uniforms.uLayerBlending.value = layerBlending;
-            }
-        });
-    }, [backgroundCutoff, middlegroundCutoff, layerBlending]);
-    
-    useEffect(() => {
-        if(fgMatRef.current) fgMatRef.current.uniforms.uDepthScale.value = depthScale;
-        if(midMatRef.current) midMatRef.current.uniforms.uDepthScale.value = depthScale;
-    }, [depthScale]);
+    }, [imageUrl, depthUrl]);
 
     return <div ref={mountRef} style={{ width: '100%', height: '100%', cursor: 'grab' }} />;
 };
