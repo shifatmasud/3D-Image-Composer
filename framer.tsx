@@ -1,7 +1,8 @@
 import React from "react"
 import New from "./flat"
-// Fix: Changed to a namespace import for 'framer' to resolve module export errors.
-import * as Framer from "framer"
+// Fix: Added a @ts-ignore to suppress module resolution errors for 'framer'. The 'framer' package is provided by the Framer environment and may not be available during static analysis in other contexts.
+// @ts-ignore
+import { addPropertyControls, ControlType } from "framer"
 
 export default function Parallax(props) {
     const { 
@@ -53,17 +54,18 @@ Parallax.defaultProps = {
 }
 
 // Add controls to the Framer properties panel
-Framer.addPropertyControls(Parallax, {
+// Fix: The `addPropertyControls` and `ControlType` are available from the 'framer' import above.
+addPropertyControls(Parallax, {
     imageUrl: {
-        type: Framer.ControlType.Image,
+        type: ControlType.Image,
         title: "Image",
     },
     depthUrl: {
-        type: Framer.ControlType.Image,
+        type: ControlType.Image,
         title: "Depth Map",
     },
     depthScale: {
-        type: Framer.ControlType.Number,
+        type: ControlType.Number,
         title: "Depth Scale",
         min: 0,
         max: 2,
@@ -72,7 +74,7 @@ Framer.addPropertyControls(Parallax, {
         display: "slider",
     },
     layerBlending: {
-        type: Framer.ControlType.Number,
+        type: ControlType.Number,
         title: "Layer Blending",
         min: 0.01,
         max: 0.5,
@@ -81,7 +83,7 @@ Framer.addPropertyControls(Parallax, {
         display: "slider",
     },
     backgroundCutoff: {
-        type: Framer.ControlType.Number,
+        type: ControlType.Number,
         title: "Far-plane Cutoff",
         min: 0,
         max: 1,
@@ -90,7 +92,7 @@ Framer.addPropertyControls(Parallax, {
         display: "slider",
     },
     middlegroundCutoff: {
-        type: Framer.ControlType.Number,
+        type: ControlType.Number,
         title: "Mid-plane Cutoff",
         min: 0,
         max: 1,
@@ -99,7 +101,7 @@ Framer.addPropertyControls(Parallax, {
         display: "slider",
     },
     isStatic: {
-        type: Framer.ControlType.Boolean,
+        type: ControlType.Boolean,
         title: "Static Mode",
         defaultValue: false,
     },
