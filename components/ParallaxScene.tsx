@@ -2,7 +2,7 @@
 import '@react-three/fiber';
 import React, { useRef, useEffect } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Environment } from '@react-three/drei';
+// Fix: The 'Environment' component is not available in the version of '@react-three/drei' used in this project.
 import { motion } from 'framer-motion-3d';
 import { useMotionValue, useSpring, useTransform } from 'framer-motion';
 import { Vector2, PointLight, MathUtils } from 'three';
@@ -115,7 +115,7 @@ const SceneContent: React.FC<ParallaxSceneProps> = ({
 
       <FloatingParticles key={particleCount} count={particleCount} pointer={pointer} />
 
-      <Environment preset="sunset" />
+      
     </React.Suspense>
   );
 };

@@ -5,7 +5,7 @@ import { DownloadSimple, UploadSimple, ArchiveBox, Image as ImageIcon } from 'ph
 import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion';
 import { motion as motion3d } from 'framer-motion-3d';
 import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber';
-import { Environment } from '@react-three/drei';
+// Fix: The 'Environment' component is not available in the version of '@react-three/drei' used in this project.
 import * as THREE from 'three';
 
 // --- Style Objects (replacing styled-components) ---
@@ -475,7 +475,7 @@ const SceneContent: React.FC<ParallaxSceneProps> = ({ imageUrl, depthUrl, pointe
         <LayeredImage imageUrl={imageUrl} depthUrl={depthUrl} depthScale={depthScale} layerBlending={layerBlending} backgroundCutoff={backgroundCutoff} middlegroundCutoff={middlegroundCutoff} />
       </motion3d.group>
       <FloatingParticles count={50} pointer={pointer} />
-      <Environment preset="sunset" />
+      
     </React.Suspense>
   );
 };
