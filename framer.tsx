@@ -1,5 +1,5 @@
 import React from "react"
-import { New } from "./flat"
+import New from "./Raw.tsx"
 // Fix: Added a @ts-ignore to suppress module resolution errors for 'framer'. The 'framer' package is provided by the Framer environment and may not be available during static analysis in other contexts.
 // @ts-ignore
 import { addPropertyControls, ControlType } from "framer"
